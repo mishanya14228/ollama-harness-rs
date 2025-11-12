@@ -52,52 +52,56 @@ impl<'a> StatefulWidget for MessageList<'a> {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let messages_container = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
             .title("Message History");
         let chat_area = messages_container.inner(area);
         messages_container.render(area, buf);
 
         let mut lines: Vec<Line> = Vec::new();
-        let max_width = (chat_area.width as f32 * 0.7) as usize;
+        let max_bubble_width = (chat_area.width as f32 * 0.7) as usize;
 
         for message in self.messages {
-            let wrapped_text = textwrap::wrap(&message.content, max_width);
+            let wrapped_text = textwrap::wrap(&message.content, max_bubble_width);
             let text_width = wrapped_text.iter().map(|s| s.len()).max().unwrap_or(0);
+            let bubble_width = text_width + 4; // text + 2 spaces + 2 border chars
 
-            let (style, alignment) = match message.role {
-                ChatRole::User => (
-                    Style::default().fg(Color::Blue),
-                    Alignment::Right,
-                ),
-                ChatRole::App => (
-                    Style::default().fg(Color::Gray),
-                    Alignment::Left,
-                ),
+            let style = match message.role {
+                ChatRole::User => Style::default().fg(Color::Cyan),
+                ChatRole::App => Style::default().fg(Color::Gray),
             };
 
-            let top_border = format!("╭{}╮", "─".repeat(text_width + 2));
-            let bottom_border = format!("╰{}╯", "─".repeat(text_width + 2));
-
-            let mut bubble_lines: Vec<Line> = Vec::new();
-            bubble_lines.push(Line::from(top_border).style(style));
+            // --- Build the bubble content (borders and text) ---
+            let mut bubble_lines_content: Vec<String> = Vec::new();
+            bubble_lines_content.push(format!("╭{}╮", "─".repeat(text_width + 2)));
             for line in wrapped_text {
-                let padded_line = format!("│ {:width$} │ ", line, width = text_width);
-                bubble_lines.push(Line::from(padded_line).style(style));
+                bubble_lines_content.push(format!("│ {:width$} │ ", line, width = text_width));
             }
-            bubble_lines.push(Line::from(bottom_border).style(style));
+            bubble_lines_content.push(format!("╰{}╯", "─".repeat(text_width + 2)));
 
-            for line in bubble_lines {
-                let mut aligned_line = line.clone();
-                lines.push(aligned_line.clone());
-                aligned_line.alignment(alignment);
+
+            // --- Add padding for alignment ---
+            match message.role {
+                ChatRole::App => {
+                    // Left-aligned, no padding needed
+                    for line_content in bubble_lines_content {
+                        lines.push(Line::from(line_content).style(style));
+                    }
+                }
+                ChatRole::User => {
+                    // Right-aligned, add padding to the left
+                    let padding = " ".repeat(chat_area.width.saturating_sub(bubble_width as u16) as usize);
+                    for line_content in bubble_lines_content {
+                        let padded_line = format!("{}{}", padding, line_content);
+                        lines.push(Line::from(padded_line).style(style));
+                    }
+                }
             }
 
+            // Add a blank line between messages
             lines.push(Line::from(""));
         }
 
         let text = Text::from(lines);
-        let paragraph = Paragraph::new(text)
-            .scroll((state.scroll_offset as u16, 0));
+        let paragraph = Paragraph::new(text).scroll((state.scroll_offset as u16, 0));
 
         paragraph.render(chat_area, buf);
     }
