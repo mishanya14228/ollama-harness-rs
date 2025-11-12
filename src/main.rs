@@ -5,12 +5,12 @@ use chrono::Local;
 use color_eyre::Result;
 use ratatui::widgets::BorderType;
 use ratatui::{
-    DefaultTerminal, Frame,
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Constraint, Layout, Position},
+    crossterm::event::{self, Event, KeyCode, KeyEventKind}, layout::{Constraint, Layout, Position},
     style::{Color, Modifier, Style, Stylize},
-    text::{Line, Span, Text},
-    widgets::{Block, List, ListItem, Paragraph},
+    text::{Line, Text},
+    widgets::{Block, Paragraph},
+    DefaultTerminal,
+    Frame,
 };
 
 fn main() -> Result<()> {
@@ -27,14 +27,13 @@ struct App {
     input: String,
     /// Position of cursor in the editor area.
     character_index: usize,
-    /// Current input mode
-    input_mode: InputMode,
     /// History of recorded messages
     messages: Vec<ChatMessage>,
     /// State for the message list widget
     message_list_state: MessageListState,
 }
 
+#[derive(Debug, PartialEq, Eq)]
 enum InputMode {
     Normal,
     Editing,
@@ -44,7 +43,6 @@ impl App {
     fn new() -> Self {
         Self {
             input: String::new(),
-            input_mode: InputMode::Normal,
             messages: vec![ChatMessage {
                 content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vitae orci sed dui luctus cursus ac non odio. Etiam id faucibus lectus, sit amet tincidunt ipsum. Nunc malesuada bibendum felis id rutrum. Maecenas magna nulla, scelerisque ac augue id, fermentum interdum diam. Fusce nec laoreet lectus. Etiam id hendrerit nisi. Quisque scelerisque dui eu dictum lobortis. Fusce turpis metus, pulvinar ut justo pellentesque, faucibus convallis nulla. Fusce non porta ipsum.
 
@@ -139,15 +137,17 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
             terminal.draw(|frame| self.draw(frame))?;
 
             if let Event::Key(key) = event::read()? {
-                match self.input_mode {
+                match self.message_list_state.input_mode {
                     InputMode::Normal => match key.code {
                         KeyCode::Char('e') => {
-                            self.input_mode = InputMode::Editing;
+                            self.message_list_state.input_mode = InputMode::Editing;
                         }
                         KeyCode::Char('q') => {
                             return Ok(());
                         }
-                        KeyCode::Up => self.message_list_state.scroll_up(),
+                        KeyCode::Up => {
+                            self.message_list_state.scroll_up();
+                        }
                         KeyCode::Down => {
                             self.message_list_state.scroll_down();
                         }
@@ -159,7 +159,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                         KeyCode::Backspace => self.delete_char(),
                         KeyCode::Left => self.move_cursor_left(),
                         KeyCode::Right => self.move_cursor_right(),
-                        KeyCode::Esc => self.input_mode = InputMode::Normal,
+                        KeyCode::Esc => self.message_list_state.input_mode = InputMode::Normal,
                         _ => {}
                     },
                     InputMode::Editing => {}
@@ -182,7 +182,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         let [messages_area, input_area, help_area] = vertical.areas(wrapper_area);
 
         // rendering text block widget
-        let (msg, style) = match self.input_mode {
+        let (msg, style) = match self.message_list_state.input_mode {
             InputMode::Normal => (
                 vec![
                     "Press ".into(),
@@ -212,7 +212,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         let input_prefix = " > | ";
         let input_text = format!("{}{}", input_prefix, self.input);
         let input = Paragraph::new(input_text.as_str())
-            .style(match self.input_mode {
+            .style(match self.message_list_state.input_mode {
                 InputMode::Normal => Style::default(),
                 InputMode::Editing => Style::default().fg(Color::Yellow),
             })
@@ -223,7 +223,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
             );
         frame.render_widget(input, input_area);
 
-        match self.input_mode {
+        match self.message_list_state.input_mode {
             // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
             InputMode::Normal => {}
 

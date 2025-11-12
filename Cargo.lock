@@ -535,6 +535,7 @@ dependencies = [
  "chrono",
  "color-eyre",
  "crossterm 0.29.0",
+ "log",
  "ratatui",
  "textwrap",
 ]
