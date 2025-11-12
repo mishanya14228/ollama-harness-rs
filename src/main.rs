@@ -1,5 +1,9 @@
+mod widgets;
+
+use crate::widgets::message_list::{ChatMessage, ChatRole, MessageList, MessageListState};
+use chrono::Local;
 use color_eyre::Result;
-use ratatui::prelude::Direction;
+use ratatui::widgets::BorderType;
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
@@ -26,7 +30,9 @@ struct App {
     /// Current input mode
     input_mode: InputMode,
     /// History of recorded messages
-    messages: Vec<String>,
+    messages: Vec<ChatMessage>,
+    /// State for the message list widget
+    message_list_state: MessageListState,
 }
 
 enum InputMode {
@@ -35,12 +41,26 @@ enum InputMode {
 }
 
 impl App {
-    const fn new() -> Self {
+    fn new() -> Self {
         Self {
             input: String::new(),
             input_mode: InputMode::Normal,
-            messages: Vec::new(),
+            messages: vec![ChatMessage {
+                content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vitae orci sed dui luctus cursus ac non odio. Etiam id faucibus lectus, sit amet tincidunt ipsum. Nunc malesuada bibendum felis id rutrum. Maecenas magna nulla, scelerisque ac augue id, fermentum interdum diam. Fusce nec laoreet lectus. Etiam id hendrerit nisi. Quisque scelerisque dui eu dictum lobortis. Fusce turpis metus, pulvinar ut justo pellentesque, faucibus convallis nulla. Fusce non porta ipsum.
+
+Phasellus rhoncus orci urna, ac ullamcorper ipsum malesuada nec. Aenean ac malesuada lorem. Phasellus ut nulla erat. Praesent eget velit ut sapien sagittis sagittis vehicula vel turpis. Cras sed est fringilla, porta justo sit amet, dictum nisl. Quisque sodales tellus nec cursus elementum. Morbi dapibus sagittis eros, tempor varius lacus laoreet viverra. Proin lacinia nisi metus, eget vulputate quam posuere et. Quisque egestas nibh vitae pretium sodales. Phasellus convallis nec purus ut feugiat. Fusce molestie tincidunt sapien, eget tristique augue pretium sed. Curabitur imperdiet quam vel hendrerit viverra. Nam sit amet nibh eu est elementum pulvinar vitae vitae elit. Maecenas tempus rhoncus vehicula. Aenean vitae commodo dolor. Sed quis lacinia magna.
+
+Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bibendum eget magna eu finibus. Vestibulum auctor, nunc sit amet gravida sagittis, ligula est dignissim justo, vitae cursus mi orci ut mi. Duis ac fringilla arcu. Morbi interdum felis sed diam dapibus, id congue diam posuere. Nam laoreet nisi eget porta rutrum. Nulla interdum ultrices risus sit amet porta. Fusce laoreet ex eget sem lacinia, sed aliquet quam cursus. Nunc rhoncus vel tortor non laoreet. Maecenas lobortis ligula tellus, eget vestibulum velit ultrices a. Quisque maximus erat velit, vitae vehicula magna rhoncus eget. Ut auctor, ante in fringilla pellentesque, neque libero convallis dui, a ornare nulla justo ut leo. Integer in lobortis ipsum, eget pharetra velit. Praesent aliquet placerat mattis.".to_string(),
+                timestamp: Local::now(),
+                role: ChatRole::App,
+            },
+                           ChatMessage {
+                               content: "asdlkansdkjabndjkasLorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vitae orci sed dui luctus cursus ac non odio. Etiam id faucibus lectus, sit amet tincidunt ipsum. Nunc malesuada bibendum felis id rutrum. Maecenas magna nulla, scelerisque ac augue id, fermentum interdum diam. Fusce nec laoreet lectus. Etiam id hendrerit nisi. Quisque scelerisque dui eu dictum lobortis. Fusce turpis metus, pulvinar ut justo pellentesque, faucibus convallis nulla. Fusce non porta ipsum.".to_string(),
+                               timestamp: Local::now(),
+                               role: ChatRole::User,
+                           }],
             character_index: 0,
+            message_list_state: MessageListState::new(),
         }
     }
 
@@ -103,7 +123,13 @@ impl App {
     }
 
     fn submit_message(&mut self) {
-        self.messages.push(self.input.clone());
+        let content = self.input.clone();
+        let timestamp = Local::now();
+        self.messages.push(ChatMessage {
+            content,
+            timestamp,
+            role: ChatRole::User,
+        });
         self.input.clear();
         self.reset_cursor();
     }
@@ -120,6 +146,10 @@ impl App {
                         }
                         KeyCode::Char('q') => {
                             return Ok(());
+                        }
+                        KeyCode::Up => self.message_list_state.scroll_up(),
+                        KeyCode::Down => {
+                            self.message_list_state.scroll_down();
                         }
                         _ => {}
                     },
@@ -138,7 +168,7 @@ impl App {
         }
     }
 
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let [_, wrapper_area, _] =
             Layout::horizontal([Constraint::Min(0), Constraint::Max(128), Constraint::Min(0)])
                 .areas(frame.area());
@@ -179,12 +209,18 @@ impl App {
         frame.render_widget(help_message, help_area);
 
         // rendering input
-        let input = Paragraph::new(self.input.as_str())
+        let input_prefix = " > | ";
+        let input_text = format!("{}{}", input_prefix, self.input);
+        let input = Paragraph::new(input_text.as_str())
             .style(match self.input_mode {
                 InputMode::Normal => Style::default(),
                 InputMode::Editing => Style::default().fg(Color::Yellow),
             })
-            .block(Block::bordered().title("Input"));
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .title("Input"),
+            );
         frame.render_widget(input, input_area);
 
         match self.input_mode {
@@ -197,23 +233,17 @@ impl App {
             InputMode::Editing => frame.set_cursor_position(Position::new(
                 // Draw the cursor at the current position in the input field.
                 // This position is can be controlled via the left and right arrow key
-                input_area.x + self.character_index as u16 + 1,
+                input_prefix.len() as u16 + input_area.x + self.character_index as u16 + 1,
                 // Move one line down, from the border to the input line
                 input_area.y + 1,
             )),
         }
 
-        // render messages
-        let messages: Vec<ListItem> = self
-            .messages
-            .iter()
-            .enumerate()
-            .map(|(i, m)| {
-                let content = Line::from(Span::raw(format!("{i}: {m}")));
-                ListItem::new(content)
-            })
-            .collect();
-        let messages = List::new(messages).block(Block::bordered().title("Messages"));
-        frame.render_widget(messages, messages_area);
+        let message_list_widget = MessageList::new(&self.messages);
+        frame.render_stateful_widget(
+            message_list_widget,
+            messages_area,
+            &mut self.message_list_state,
+        );
     }
 }
