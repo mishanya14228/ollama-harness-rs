@@ -2,12 +2,13 @@ use crate::InputMode;
 use chrono::{DateTime, Local};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::prelude::{Line, StatefulWidget, Widget};
+use ratatui::prelude::{StatefulWidget, Widget};
 use ratatui::style::{Color, Style};
-use ratatui::text::Text;
+use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use std::iter::once;
 use textwrap;
+
+const USE_DEBUG: bool = true;
 
 pub enum ChatRole {
     User,
@@ -77,12 +78,14 @@ impl<'a> StatefulWidget for MessageList<'a> {
         let messages_block = Block::default()
             .borders(Borders::ALL)
             .title("Message History");
-        let chat_area = messages_block.inner(message_container);
-        messages_block.render(message_container, buf);
 
-        let debug_container_block = Block::default().borders(Borders::ALL).title("Debug");
-        let debug_area = debug_container_block.inner(debug_container);
-        debug_container_block.render(debug_container, buf);
+        let rendering_container_area = match USE_DEBUG {
+            true => message_container,
+            false => area,
+        };
+
+        let chat_area = messages_block.inner(rendering_container_area);
+        messages_block.render(rendering_container_area, buf);
 
         let mut lines: Vec<Line> = Vec::new();
         let max_bubble_width = (chat_area.width as f32 * 0.7) as usize;
@@ -142,14 +145,20 @@ impl<'a> StatefulWidget for MessageList<'a> {
         state.text_height = text.height();
         state.container_height = chat_area.height as usize;
 
-        Paragraph::new(Text::from(Line::from(format!(
-            "flag: {:#?}; scroll offset: {:#?}; text height: {:#?}; chat height: {:#?}",
-            state.has_room_for_bottom_scroll(),
-            state.scroll_offset,
-            state.text_height,
-            state.container_height
-        ))))
-        .render(debug_area, buf);
+        if USE_DEBUG {
+            let debug_container_block = Block::default().borders(Borders::ALL).title("Debug");
+            let debug_area = debug_container_block.inner(debug_container);
+            debug_container_block.render(debug_container, buf);
+
+            Paragraph::new(Text::from(Line::from(format!(
+                "flag: {:#?}; scroll offset: {:#?}; text height: {:#?}; chat height: {:#?}",
+                state.has_room_for_bottom_scroll(),
+                state.scroll_offset,
+                state.text_height,
+                state.container_height
+            ))))
+            .render(debug_area, buf);
+        }
 
         if state.input_mode == InputMode::Editing && state.has_room_for_bottom_scroll() {
             state.scroll_offset = state.text_height - state.container_height;
