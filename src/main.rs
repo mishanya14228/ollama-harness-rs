@@ -1,14 +1,15 @@
 mod widgets;
 
 use crate::widgets::input::{InputAction, TextInput, TextInputState};
+use crate::widgets::input_label::InputLabel;
 use crate::widgets::message_list::{ChatMessage, ChatRole, MessageList, MessageListState};
 use chrono::Local;
 use color_eyre::Result;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind}, layout::{Constraint, Layout, Position},
-    style::{Modifier, Style, Stylize},
-    text::{Line, Text},
-    widgets::Paragraph,
+    style::Stylize
+
+    ,
     DefaultTerminal,
     Frame,
 };
@@ -125,32 +126,8 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         // creating blocks from layout
         let [messages_area, input_area, help_area] = vertical.areas(wrapper_area);
 
-        // rendering text block widget
-        let (msg, style) = match self.message_list_state.input_mode {
-            InputMode::Normal => (
-                vec![
-                    "Press ".into(),
-                    "q".bold(),
-                    " to exit, ".into(),
-                    "e".bold(),
-                    " to start editing.".bold(),
-                ],
-                Style::default().add_modifier(Modifier::RAPID_BLINK),
-            ),
-            InputMode::Editing => (
-                vec![
-                    "Press ".into(),
-                    "Esc".bold(),
-                    " to stop editing, ".into(),
-                    "Enter".bold(),
-                    " to record the message".into(),
-                ],
-                Style::default(),
-            ),
-        };
-        let text = Text::from(Line::from(msg)).patch_style(style);
-        let help_message = Paragraph::new(text);
-        frame.render_widget(help_message, help_area);
+        let input_label = InputLabel::new(&self.message_list_state.input_mode);
+        frame.render_widget(input_label, help_area);
 
         match self.message_list_state.input_mode {
             InputMode::Normal => {}
