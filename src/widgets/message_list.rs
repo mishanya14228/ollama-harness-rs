@@ -1,3 +1,4 @@
+use std::sync::{Arc, Mutex};
 use crate::InputMode;
 use chrono::{DateTime, Local};
 use ratatui::buffer::Buffer;
@@ -8,6 +9,7 @@ use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use textwrap;
 use crate::shared::constants::USE_DEBUG;
+use crate::shared::debug_logger::DebugLogger;
 
 pub enum ChatRole {
     User,
@@ -25,15 +27,17 @@ pub struct MessageListState {
     pub container_height: usize,
     pub text_height: usize,
     pub input_mode: InputMode,
+    pub debug_logger: Arc<Mutex<DebugLogger>>
 }
 
 impl MessageListState {
-    pub fn new() -> Self {
+    pub fn new(debug_logger: Arc<Mutex<DebugLogger>>) -> Self {
         Self {
             scroll_offset: 0,
             container_height: 0,
             text_height: 0,
             input_mode: InputMode::Normal,
+            debug_logger
         }
     }
 

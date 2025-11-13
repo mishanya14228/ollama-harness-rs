@@ -1,3 +1,4 @@
+use std::sync::{Arc, Mutex};
 use crate::InputMode;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -8,6 +9,7 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Paragraph},
 };
+use crate::shared::debug_logger::DebugLogger;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum InputAction {
@@ -35,7 +37,7 @@ impl<'a> TextInput<'a> {
                 let content = state.input.clone();
                 state.input.clear();
                 TextInput::reset_cursor(state);
-                return InputAction::Submit(content)
+                return InputAction::Submit(content);
             }
             KeyCode::Char(to_insert) => {
                 TextInput::enter_char(state, to_insert);
@@ -51,9 +53,8 @@ impl<'a> TextInput<'a> {
             }
             KeyCode::Esc => {
                 input_action = InputAction::ExitEditingMode;
-            },
-            _ => {
-            },
+            }
+            _ => {}
         }
         let new_token = TextInput::detect_token(state);
         let should_redraw = current_token.is_none() != new_token.is_none();
@@ -81,7 +82,7 @@ impl<'a> TextInput<'a> {
 
     /// Returns the byte index based on the character position.
     ///
-    /// Since each character in a string can be contain multiple bytes, it's necessary to calculate
+    /// Since each character in a string can contain multiple bytes, it's necessary to calculate
     /// the byte index based on the index of the character.
     fn byte_index(state: &TextInputState) -> usize {
         state
@@ -173,6 +174,7 @@ pub struct TextInputState {
     pub character_index: usize,
     pub prefix: String,
     pub reference_token: Option<String>,
+    pub debug_logger: Arc<Mutex<DebugLogger>>
 }
 
 impl<'a> StatefulWidget for TextInput<'a> {

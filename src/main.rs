@@ -1,7 +1,10 @@
+mod services;
 mod shared;
 mod widgets;
 
+use crate::services::file_explorer::FileExplorer;
 use crate::shared::constants::USE_DEBUG;
+use crate::shared::debug_logger::DebugLogger;
 use crate::widgets::debug_block::DebugBlock;
 use crate::widgets::input::{InputAction, TextInput, TextInputState};
 use crate::widgets::input_label::InputLabel;
@@ -13,6 +16,7 @@ use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
     layout::{Constraint, Layout, Position},
 };
+use std::sync::{Arc, Mutex};
 
 fn main() -> Result<()> {
     color_eyre::install()?;
@@ -31,7 +35,7 @@ struct App {
     /// State for the input
     input_state: TextInputState,
 
-    debug_messages: Vec<String>,
+    debug_logger: Arc<Mutex<DebugLogger>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -42,8 +46,9 @@ enum InputMode {
 
 impl App {
     fn new() -> Self {
+        let debug_logger = Arc::new(Mutex::new(DebugLogger::new()));
         Self {
-                        messages: vec![ChatMessage {
+            messages: vec![ChatMessage {
                 content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vitae orci sed dui luctus cursus ac non odio. Etiam id faucibus lectus, sit amet tincidunt ipsum. Nunc malesuada bibendum felis id rutrum. Maecenas magna nulla, scelerisque ac augue id, fermentum interdum diam. Fusce nec laoreet lectus. Etiam id hendrerit nisi. Quisque scelerisque dui eu dictum lobortis. Fusce turpis metus, pulvinar ut justo pellentesque, faucibus convallis nulla. Fusce non porta ipsum.
 
 Phasellus rhoncus orci urna, ac ullamcorper ipsum malesuada nec. Aenean ac malesuada lorem. Phasellus ut nulla erat. Praesent eget velit ut sapien sagittis sagittis vehicula vel turpis. Cras sed est fringilla, porta justo sit amet, dictum nisl. Quisque sodales tellus nec cursus elementum. Morbi dapibus sagittis eros, tempor varius lacus laoreet viverra. Proin lacinia nisi metus, eget vulputate quam posuere et. Quisque egestas nibh vitae pretium sodales. Phasellus convallis nec purus ut feugiat. Fusce molestie tincidunt sapien, eget tristique augue pretium sed. Curabitur imperdiet quam vel hendrerit viverra. Nam sit amet nibh eu est elementum pulvinar vitae vitae elit. Maecenas tempus rhoncus vehicula. Aenean vitae commodo dolor. Sed quis lacinia magna.
@@ -57,14 +62,15 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                                timestamp: Local::now(),
                                role: ChatRole::User,
                            }],
-            debug_messages: vec![],
-            message_list_state: MessageListState::new(),
+            message_list_state: MessageListState::new(debug_logger.clone()),
             input_state: TextInputState {
                 prefix: String::from(" > | "),
                 input: String::new(),
                 character_index: 0,
                 reference_token: None,
-            }
+                debug_logger: debug_logger.clone(),
+            },
+            debug_logger,
         }
     }
 
@@ -91,8 +97,11 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                     },
                     InputMode::Editing if key.kind == KeyEventKind::Press => {
                         let action = TextInput::handle_key_event(key, &mut self.input_state);
-                        self.debug_messages
-                            .push(format!("Key: {:?}; InputAction: {:?}", key, action));
+                        DebugLogger::safe_log(
+                            &self.debug_logger,
+                            format!("Key: {:?}; InputAction: {:?}", key, action),
+                        );
+
                         match action {
                             InputAction::Submit(content) => {
                                 if !content.trim().is_empty() {
@@ -171,7 +180,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         frame.render_stateful_widget(input_widget, input_area, &mut self.input_state);
 
         if USE_DEBUG {
-            let debug_block = DebugBlock::new(self.debug_messages.clone());
+            let debug_block = DebugBlock::new(DebugLogger::get_messages(&self.debug_logger));
             frame.render_widget(debug_block, debug_area);
         }
     }

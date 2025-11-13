@@ -4,6 +4,7 @@ use ratatui::prelude::{Line, Widget};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use textwrap::{Options, wrap};
 
+
 pub struct DebugBlock {
     debug_messages: Vec<String>,
 }
