@@ -6,12 +6,10 @@ use crate::widgets::message_list::{ChatMessage, ChatRole, MessageList, MessageLi
 use chrono::Local;
 use color_eyre::Result;
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEventKind}, layout::{Constraint, Layout, Position},
-    style::Stylize
-
-    ,
-    DefaultTerminal,
-    Frame,
+    DefaultTerminal, Frame,
+    crossterm::event::{self, Event, KeyCode, KeyEventKind},
+    layout::{Constraint, Layout, Position},
+    style::Stylize,
 };
 
 fn main() -> Result<()> {
@@ -126,7 +124,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         // creating blocks from layout
         let [messages_area, input_area, help_area] = vertical.areas(wrapper_area);
 
-        let input_label = InputLabel::new(&self.message_list_state.input_mode);
+        let input_label = InputLabel::new(&self.message_list_state.input_mode, &self.input_state);
         frame.render_widget(input_label, help_area);
 
         match self.message_list_state.input_mode {
