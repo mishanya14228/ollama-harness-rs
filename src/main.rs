@@ -1,5 +1,8 @@
+mod shared;
 mod widgets;
 
+use crate::shared::constants::USE_DEBUG;
+use crate::widgets::debug_block::DebugBlock;
 use crate::widgets::input::{InputAction, TextInput, TextInputState};
 use crate::widgets::input_label::InputLabel;
 use crate::widgets::message_list::{ChatMessage, ChatRole, MessageList, MessageListState};
@@ -9,7 +12,6 @@ use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
     layout::{Constraint, Layout, Position},
-    style::Stylize,
 };
 
 fn main() -> Result<()> {
@@ -28,6 +30,8 @@ struct App {
     message_list_state: MessageListState,
     /// State for the input
     input_state: TextInputState,
+
+    debug_messages: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -53,11 +57,13 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                                timestamp: Local::now(),
                                role: ChatRole::User,
                            }],
+            debug_messages: vec![],
             message_list_state: MessageListState::new(),
             input_state: TextInputState {
                 prefix: String::from(" > | "),
                 input: String::new(),
                 character_index: 0,
+                reference_token: None,
             }
         }
     }
@@ -85,6 +91,8 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                     },
                     InputMode::Editing if key.kind == KeyEventKind::Press => {
                         let action = TextInput::handle_key_event(key, &mut self.input_state);
+                        self.debug_messages
+                            .push(format!("Key: {:?}; InputAction: {:?}", key, action));
                         match action {
                             InputAction::Submit(content) => {
                                 if !content.trim().is_empty() {
@@ -98,6 +106,9 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                             InputAction::ExitEditingMode => {
                                 self.message_list_state.input_mode = InputMode::Normal;
                             }
+                            InputAction::ForceRedraw => {
+                                terminal.draw(|frame| self.draw(frame))?;
+                            }
                             InputAction::None => {}
                         }
                     }
@@ -108,13 +119,20 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
     }
 
     fn draw(&mut self, frame: &mut Frame) {
-        let [_, wrapper_area, _] =
-            Layout::horizontal([Constraint::Min(0), Constraint::Max(128), Constraint::Min(0)])
-                .areas(frame.area());
+        let columns = if USE_DEBUG {
+            [
+                Constraint::Max(0),
+                Constraint::Max(128),
+                Constraint::Min(48),
+            ]
+        } else {
+            [Constraint::Min(0), Constraint::Max(128), Constraint::Min(0)]
+        };
+        let [_, wrapper_area, debug_area] = Layout::horizontal(columns).areas(frame.area());
 
-        let last_row_size = match self.message_list_state.input_mode {
-            InputMode::Normal => 1,
-            InputMode::Editing => 5,
+        let last_row_size = match &self.input_state.reference_token {
+            Some(_token) => 5,
+            None => 1,
         };
         let vertical = Layout::vertical([
             Constraint::Min(1),
@@ -124,8 +142,8 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         // creating blocks from layout
         let [messages_area, input_area, help_area] = vertical.areas(wrapper_area);
 
-        let input_label = InputLabel::new(&self.message_list_state.input_mode, &self.input_state);
-        frame.render_widget(input_label, help_area);
+        let input_label = InputLabel::new(&self.message_list_state.input_mode);
+        frame.render_stateful_widget(input_label, help_area, &mut self.input_state);
 
         match self.message_list_state.input_mode {
             InputMode::Normal => {}
@@ -150,6 +168,11 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         );
 
         let input_widget = TextInput::new(&self.message_list_state.input_mode);
-        frame.render_stateful_widget(input_widget, input_area, &mut self.input_state)
+        frame.render_stateful_widget(input_widget, input_area, &mut self.input_state);
+
+        if USE_DEBUG {
+            let debug_block = DebugBlock::new(self.debug_messages.clone());
+            frame.render_widget(debug_block, debug_area);
+        }
     }
 }

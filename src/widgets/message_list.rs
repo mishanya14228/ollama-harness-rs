@@ -7,8 +7,7 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use textwrap;
-
-const USE_DEBUG: bool = false;
+use crate::shared::constants::USE_DEBUG;
 
 pub enum ChatRole {
     User,

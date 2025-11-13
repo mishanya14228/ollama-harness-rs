@@ -9,9 +9,11 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum InputAction {
     None,
     Submit(String),
+    ForceRedraw,
     ExitEditingMode,
 }
 
@@ -25,32 +27,40 @@ impl<'a> TextInput<'a> {
     }
 
     pub fn handle_key_event(key_event: KeyEvent, state: &mut TextInputState) -> InputAction {
+        let current_token = state.reference_token.clone();
+        let mut input_action = InputAction::None;
+
         match key_event.code {
             KeyCode::Enter => {
                 let content = state.input.clone();
                 state.input.clear();
                 TextInput::reset_cursor(state);
-                InputAction::Submit(content)
+                return InputAction::Submit(content)
             }
             KeyCode::Char(to_insert) => {
                 TextInput::enter_char(state, to_insert);
-                InputAction::None
             }
             KeyCode::Backspace => {
                 TextInput::delete_char(state, key_event.modifiers);
-                InputAction::None
             }
             KeyCode::Left => {
                 TextInput::move_cursor_left(state);
-                InputAction::None
             }
             KeyCode::Right => {
                 TextInput::move_cursor_right(state);
-                InputAction::None
             }
-            KeyCode::Esc => InputAction::ExitEditingMode,
-            _ => InputAction::None,
+            KeyCode::Esc => {
+                input_action = InputAction::ExitEditingMode;
+            },
+            _ => {
+            },
         }
+        let new_token = TextInput::detect_token(state);
+        let should_redraw = current_token.is_none() != new_token.is_none();
+        if input_action == InputAction::None && should_redraw {
+            input_action = InputAction::ForceRedraw;
+        }
+        input_action
     }
 
     fn move_cursor_left(state: &mut TextInputState) {
@@ -120,12 +130,49 @@ impl<'a> TextInput<'a> {
     fn reset_cursor(state: &mut TextInputState) {
         state.character_index = 0;
     }
+
+    pub fn detect_token(state: &mut TextInputState) -> Option<String> {
+        if state.character_index > state.input.len() {
+            return None;
+        }
+
+        // Find token start
+        let mut start = state.character_index;
+        while start > 0 {
+            let ch = state.input.chars().nth(start - 1).unwrap();
+            if ch.is_whitespace() {
+                break;
+            }
+            start -= 1;
+        }
+
+        // Find token end
+        let mut end = state.character_index;
+        while end < state.input.len() {
+            let ch = state.input.chars().nth(end).unwrap();
+            if ch.is_whitespace() {
+                break;
+            }
+            end += 1;
+        }
+
+        let token = &state.input[start..end];
+
+        if token.starts_with('/') || token.starts_with('@') {
+            state.reference_token = Some(token.to_string());
+            Some(token.to_string())
+        } else {
+            state.reference_token = None;
+            None
+        }
+    }
 }
 
 pub struct TextInputState {
     pub input: String,
     pub character_index: usize,
     pub prefix: String,
+    pub reference_token: Option<String>,
 }
 
 impl<'a> StatefulWidget for TextInput<'a> {
