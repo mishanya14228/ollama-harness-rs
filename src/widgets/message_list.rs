@@ -27,6 +27,7 @@ pub struct MessageListState {
     pub container_height: usize,
     pub text_height: usize,
     pub input_mode: InputMode,
+    #[allow(dead_code)]
     pub debug_logger: Arc<Mutex<DebugLogger>>
 }
 

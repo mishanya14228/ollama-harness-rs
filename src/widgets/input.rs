@@ -1,5 +1,6 @@
-use std::sync::{Arc, Mutex};
 use crate::InputMode;
+use crate::shared::autocomplete_state::{AutocompleteState, ReferenceType};
+use crate::shared::text_input_state::TextInputState;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::{StatefulWidget, Widget};
@@ -9,13 +10,11 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Paragraph},
 };
-use crate::shared::debug_logger::DebugLogger;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum InputAction {
     None,
     Submit(String),
-    ForceRedraw,
     ExitEditingMode,
 }
 
@@ -29,7 +28,6 @@ impl<'a> TextInput<'a> {
     }
 
     pub fn handle_key_event(key_event: KeyEvent, state: &mut TextInputState) -> InputAction {
-        let current_token = state.reference_token.clone();
         let mut input_action = InputAction::None;
 
         match key_event.code {
@@ -41,6 +39,7 @@ impl<'a> TextInput<'a> {
             }
             KeyCode::Char(to_insert) => {
                 TextInput::enter_char(state, to_insert);
+                state.autocomplete_state.current_index = 0;
             }
             KeyCode::Backspace => {
                 TextInput::delete_char(state, key_event.modifiers);
@@ -54,13 +53,15 @@ impl<'a> TextInput<'a> {
             KeyCode::Esc => {
                 input_action = InputAction::ExitEditingMode;
             }
+            KeyCode::Down => state.autocomplete_state.increment_current_index(),
+            KeyCode::Up => state.autocomplete_state.decrement_current_index(),
+            KeyCode::Tab => {
+                TextInput::autocomplete(state);
+            }
             _ => {}
         }
-        let new_token = TextInput::detect_token(state);
-        let should_redraw = current_token.is_none() != new_token.is_none();
-        if input_action == InputAction::None && should_redraw {
-            input_action = InputAction::ForceRedraw;
-        }
+        TextInput::detect_token(state);
+
         input_action
     }
 
@@ -78,6 +79,37 @@ impl<'a> TextInput<'a> {
         let index = TextInput::byte_index(state);
         state.input.insert(index, new_char);
         TextInput::move_cursor_right(state);
+    }
+
+    fn autocomplete(state: &mut TextInputState) {
+        let token_start_index = state.autocomplete_state.reference_token_index.clone();
+        let token_length = state
+            .autocomplete_state
+            .reference_token
+            .clone()
+            .unwrap_or("".to_string())
+            .len();
+        let prefix = match state.autocomplete_state.reference_type {
+            ReferenceType::Command => "/",
+            ReferenceType::Filepath => "@",
+            ReferenceType::None => "",
+        };
+        let to_insert = format!("{prefix}{}", state.autocomplete_state.get_selected_option());
+        let before_char_to_delete = state.input.chars().take(token_start_index);
+        let after_char_to_delete = state.input.chars().skip(token_length + token_start_index);
+        state.input = before_char_to_delete
+            .clone()
+            .chain(after_char_to_delete)
+            .collect();
+        TextInput::move_cursor_left(state);
+
+        state
+            .input
+            .insert_str(token_start_index, to_insert.as_str());
+
+        state.autocomplete_state.set_current_index(0);
+        state.autocomplete_state.set_options(vec![]);
+        state.character_index = state.input.chars().count();
     }
 
     /// Returns the byte index based on the character position.
@@ -159,22 +191,25 @@ impl<'a> TextInput<'a> {
 
         let token = &state.input[start..end];
 
-        if token.starts_with('/') || token.starts_with('@') {
-            state.reference_token = Some(token.to_string());
-            Some(token.to_string())
-        } else {
-            state.reference_token = None;
-            None
+        let ref_type = AutocompleteState::get_reference_type_from_token(token);
+        match ref_type {
+            ReferenceType::None => {
+                state
+                    .autocomplete_state
+                    .set_reference_token(None, 0, ReferenceType::None);
+                state.autocomplete_state.set_options(vec![]);
+                None
+            }
+            ref_type => {
+                state.autocomplete_state.set_reference_token(
+                    Some(token.to_string()),
+                    start,
+                    ref_type,
+                );
+                Some(token.to_string())
+            }
         }
     }
-}
-
-pub struct TextInputState {
-    pub input: String,
-    pub character_index: usize,
-    pub prefix: String,
-    pub reference_token: Option<String>,
-    pub debug_logger: Arc<Mutex<DebugLogger>>
 }
 
 impl<'a> StatefulWidget for TextInput<'a> {

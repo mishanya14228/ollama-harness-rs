@@ -11,10 +11,12 @@ impl DebugLogger {
         }
     }
 
+    #[allow(dead_code)]
     pub fn log(&mut self, message: String) {
         self.debug_messages.push(message);
     }
 
+    #[allow(dead_code)]
     pub fn safe_log(arc_mutex_logger: &Arc<Mutex<Self>>, message: String) {
         match arc_mutex_logger.lock() {
             Ok(mut logger_guard) => {
@@ -30,7 +32,7 @@ impl DebugLogger {
     pub fn get_messages(arc_mutex_logger: &Arc<Mutex<Self>>) -> Vec<String> {
         match arc_mutex_logger.lock() {
             Ok(logger_guard) => logger_guard.debug_messages.clone(),
-            Err(err) => {
+            Err(_err) => {
                 vec![]
             }
         }

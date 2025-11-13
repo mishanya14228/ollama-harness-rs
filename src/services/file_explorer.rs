@@ -1,10 +1,10 @@
 use crate::shared::debug_logger::DebugLogger;
-use std::env;
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 pub struct FileExplorer {
+    #[allow(dead_code)]
     debug_logger: Arc<Mutex<DebugLogger>>,
 }
 
@@ -22,7 +22,7 @@ impl FileExplorer {
         };
 
         let root_dir_path = if Path::new(&normalized_path).is_dir() {
-            normalized_path
+            normalized_path.clone()
         } else {
             match Path::new(&normalized_path).parent() {
                 Some(parent) => parent.to_str().unwrap().to_string(),
@@ -30,14 +30,21 @@ impl FileExplorer {
             }
         };
 
-
         let dir = fs::read_dir(root_dir_path);
         match dir {
             Ok(dir) => {
                 for entry in dir {
                     let entry = entry.unwrap();
-                    files.push(entry.path().display().to_string());
-                    DebugLogger::safe_log(&self.debug_logger, format!("{}", entry.path().display()));
+                    match entry.file_type() {
+                        Ok(file_type) => {
+                            let mut path = entry.path().display().to_string();
+                            if file_type.is_dir() {
+                                path.push_str("/");
+                            }
+                            files.push(path);
+                        }
+                        Err(_) => {}
+                    }
                 }
             }
             Err(_) => {}

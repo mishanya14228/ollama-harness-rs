@@ -2,19 +2,20 @@ mod services;
 mod shared;
 mod widgets;
 
-use crate::services::file_explorer::FileExplorer;
+use crate::shared::autocomplete_state::AutocompleteState;
 use crate::shared::constants::USE_DEBUG;
 use crate::shared::debug_logger::DebugLogger;
+use crate::shared::text_input_state::TextInputState;
 use crate::widgets::debug_block::DebugBlock;
-use crate::widgets::input::{InputAction, TextInput, TextInputState};
+use crate::widgets::input::{InputAction, TextInput};
 use crate::widgets::input_label::InputLabel;
 use crate::widgets::message_list::{ChatMessage, ChatRole, MessageList, MessageListState};
 use chrono::Local;
 use color_eyre::Result;
 use ratatui::{
-    DefaultTerminal, Frame,
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Constraint, Layout, Position},
+    crossterm::event::{self, Event, KeyCode, KeyEventKind}, layout::{Constraint, Layout, Position},
+    DefaultTerminal,
+    Frame,
 };
 use std::sync::{Arc, Mutex};
 
@@ -67,8 +68,8 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                 prefix: String::from(" > | "),
                 input: String::new(),
                 character_index: 0,
-                reference_token: None,
                 debug_logger: debug_logger.clone(),
+                autocomplete_state: AutocompleteState::new()
             },
             debug_logger,
         }
@@ -97,11 +98,6 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                     },
                     InputMode::Editing if key.kind == KeyEventKind::Press => {
                         let action = TextInput::handle_key_event(key, &mut self.input_state);
-                        DebugLogger::safe_log(
-                            &self.debug_logger,
-                            format!("Key: {:?}; InputAction: {:?}", key, action),
-                        );
-
                         match action {
                             InputAction::Submit(content) => {
                                 if !content.trim().is_empty() {
@@ -114,9 +110,6 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                             }
                             InputAction::ExitEditingMode => {
                                 self.message_list_state.input_mode = InputMode::Normal;
-                            }
-                            InputAction::ForceRedraw => {
-                                terminal.draw(|frame| self.draw(frame))?;
                             }
                             InputAction::None => {}
                         }
@@ -139,9 +132,9 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         };
         let [_, wrapper_area, debug_area] = Layout::horizontal(columns).areas(frame.area());
 
-        let last_row_size = match &self.input_state.reference_token {
-            Some(_token) => 5,
-            None => 1,
+        let last_row_size = match &self.input_state.autocomplete_state.is_displayed() {
+            true => 5,
+            false => 1,
         };
         let vertical = Layout::vertical([
             Constraint::Min(1),
