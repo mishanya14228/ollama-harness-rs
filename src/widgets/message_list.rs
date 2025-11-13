@@ -8,7 +8,7 @@ use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use textwrap;
 
-const USE_DEBUG: bool = true;
+const USE_DEBUG: bool = false;
 
 pub enum ChatRole {
     User,
