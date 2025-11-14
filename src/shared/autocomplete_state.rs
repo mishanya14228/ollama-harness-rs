@@ -70,10 +70,14 @@ impl AutocompleteState {
     }
 
     pub fn increment_current_index(&mut self) {
-        self.current_index = self.current_index + 1;
+        if self.current_index < self.options.len() -1 {
+            self.current_index = self.current_index + 1;
+        }
     }
 
     pub fn decrement_current_index(&mut self) {
-        self.current_index = self.current_index - 1;
+        if self.current_index > 0 {
+            self.current_index = self.current_index - 1;
+        }
     }
 }
