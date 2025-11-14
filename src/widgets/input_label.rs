@@ -69,14 +69,34 @@ impl<'a> InputLabel<'a> {
     }
 
     fn render_file_path(self, state: &mut TextInputState, area: Rect, buf: &mut Buffer) {
+        let viewport_height = area.height.max(1) as usize;
+        let total_options = state.autocomplete_state.options.len();
+
+        if total_options == 0 {
+            Paragraph::new("").render(area, buf);
+            return;
+        }
+
+        let mut current_index = state.autocomplete_state.current_index;
+        if current_index >= total_options {
+            current_index = total_options - 1;
+            state.autocomplete_state.set_current_index(current_index);
+        }
+
+        let max_start = total_options.saturating_sub(viewport_height);
+        let start = current_index
+            .saturating_sub(viewport_height.saturating_sub(1))
+            .min(max_start);
+        let end = (start + viewport_height).min(total_options);
+
+        let options = &state.autocomplete_state.options;
         let help_message = Paragraph::new(
-            state
-                .autocomplete_state
-                .options
+            options[start..end]
                 .iter()
                 .enumerate()
-                .map(|(index, entry)| {
-                    let style = if index == state.autocomplete_state.current_index {
+                .map(|(offset, entry)| {
+                    let absolute_index = start + offset;
+                    let style = if absolute_index == current_index {
                         Style::default().fg(Color::Green)
                     } else {
                         Style::default().fg(Color::Cyan)

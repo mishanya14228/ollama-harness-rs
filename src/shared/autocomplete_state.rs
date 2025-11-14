@@ -70,7 +70,11 @@ impl AutocompleteState {
     }
 
     pub fn increment_current_index(&mut self) {
-        if self.current_index < self.options.len() -1 {
+        if self.options.is_empty() {
+            return;
+        }
+
+        if self.current_index < self.options.len().saturating_sub(1) {
             self.current_index = self.current_index + 1;
         }
     }
