@@ -9,13 +9,13 @@ use ratatui::prelude::{Color, Line, Modifier, StatefulWidget, Style, Stylize, Te
 use ratatui::widgets::Paragraph;
 use std::env;
 
-pub struct InputLabel<'a> {
+pub struct InputLabelWidget<'a> {
     pub input_mode: &'a InputMode,
 }
 
-impl<'a> InputLabel<'a> {
-    pub fn new(input_mode: &'a InputMode) -> InputLabel<'a> {
-        InputLabel { input_mode }
+impl<'a> InputLabelWidget<'a> {
+    pub fn new(input_mode: &'a InputMode) -> InputLabelWidget<'a> {
+        InputLabelWidget { input_mode }
     }
 
     fn render_default_text(self, area: Rect, buf: &mut Buffer) {
@@ -95,7 +95,7 @@ impl<'a> InputLabel<'a> {
 
     fn render_autocomplete(self, state: &mut TextInputState, area: Rect, buf: &mut Buffer) {
         let (total_options, start, end, current_index, options) =
-            InputLabel::prepare_autocomplete_options(state, area);
+            InputLabelWidget::prepare_autocomplete_options(state, area);
 
         if total_options == 0 {
             Paragraph::new("").render(area, buf);
@@ -145,7 +145,7 @@ impl<'a> InputLabel<'a> {
     }
 }
 
-impl<'a> StatefulWidget for InputLabel<'a> {
+impl<'a> StatefulWidget for InputLabelWidget<'a> {
     type State = TextInputState;
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         let token = state

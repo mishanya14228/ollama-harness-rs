@@ -2,31 +2,34 @@ mod services;
 mod shared;
 mod widgets;
 
+use crate::shared::any_error::AnyError;
 use crate::shared::autocomplete_state::AutocompleteState;
 use crate::shared::chat_action::{InputAction, SubmitData};
 use crate::shared::command::Command;
 use crate::shared::constants::USE_DEBUG;
 use crate::shared::debug_logger::DebugLogger;
+use crate::shared::messages_storage::MessagesStorage;
 use crate::shared::text_input_state::TextInputState;
 use crate::shared::window_state::WindowState;
 use crate::shared::window_state::WindowState::CommandFlow;
-use crate::widgets::debug_block::DebugBlock;
-use crate::widgets::input::TextInput;
-use crate::widgets::input_label::InputLabel;
-use crate::widgets::message_list::{ChatMessage, ChatRole, MessageList, MessageListState};
-use chrono::Local;
+use crate::widgets::debug_block::DebugBlockWidget;
+use crate::widgets::input::TextInputWidget;
+use crate::widgets::input_label::InputLabelWidget;
+use crate::widgets::message_list::{ChatRole, MessageListState, MessageListWidget};
 use color_eyre::Result;
+use ollama_rs::Ollama;
 use ratatui::{
-    DefaultTerminal, Frame,
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Constraint, Layout, Position},
+    crossterm::event::{self, Event, KeyCode, KeyEventKind}, layout::{Constraint, Layout, Position},
+    DefaultTerminal,
+    Frame,
 };
 use std::sync::{Arc, Mutex};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<(), AnyError> {
     color_eyre::install()?;
     let terminal = ratatui::init();
-    let app_result = App::new().run(terminal);
+    let app_result = App::new().run(terminal).await;
     ratatui::restore();
     app_result
 }
@@ -34,14 +37,11 @@ fn main() -> Result<()> {
 /// App holds the state of the application
 struct App {
     window_state: WindowState,
-    /// History of recorded messages
-    messages: Vec<ChatMessage>,
-    /// State for the message list widget
+    messages: MessagesStorage,
     message_list_state: MessageListState,
-    /// State for the input
     input_state: TextInputState,
-
     debug_logger: Arc<Mutex<DebugLogger>>,
+    ollama: Ollama,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -55,20 +55,7 @@ impl App {
         let debug_logger = Arc::new(Mutex::new(DebugLogger::new()));
         Self {
             window_state: WindowState::Default,
-            messages: vec![ChatMessage {
-                content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vitae orci sed dui luctus cursus ac non odio. Etiam id faucibus lectus, sit amet tincidunt ipsum. Nunc malesuada bibendum felis id rutrum. Maecenas magna nulla, scelerisque ac augue id, fermentum interdum diam. Fusce nec laoreet lectus. Etiam id hendrerit nisi. Quisque scelerisque dui eu dictum lobortis. Fusce turpis metus, pulvinar ut justo pellentesque, faucibus convallis nulla. Fusce non porta ipsum.
-
-Phasellus rhoncus orci urna, ac ullamcorper ipsum malesuada nec. Aenean ac malesuada lorem. Phasellus ut nulla erat. Praesent eget velit ut sapien sagittis sagittis vehicula vel turpis. Cras sed est fringilla, porta justo sit amet, dictum nisl. Quisque sodales tellus nec cursus elementum. Morbi dapibus sagittis eros, tempor varius lacus laoreet viverra. Proin lacinia nisi metus, eget vulputate quam posuere et. Quisque egestas nibh vitae pretium sodales. Phasellus convallis nec purus ut feugiat. Fusce molestie tincidunt sapien, eget tristique augue pretium sed. Curabitur imperdiet quam vel hendrerit viverra. Nam sit amet nibh eu est elementum pulvinar vitae vitae elit. Maecenas tempus rhoncus vehicula. Aenean vitae commodo dolor. Sed quis lacinia magna.
-
-Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bibendum eget magna eu finibus. Vestibulum auctor, nunc sit amet gravida sagittis, ligula est dignissim justo, vitae cursus mi orci ut mi. Duis ac fringilla arcu. Morbi interdum felis sed diam dapibus, id congue diam posuere. Nam laoreet nisi eget porta rutrum. Nulla interdum ultrices risus sit amet porta. Fusce laoreet ex eget sem lacinia, sed aliquet quam cursus. Nunc rhoncus vel tortor non laoreet. Maecenas lobortis ligula tellus, eget vestibulum velit ultrices a. Quisque maximus erat velit, vitae vehicula magna rhoncus eget. Ut auctor, ante in fringilla pellentesque, neque libero convallis dui, a ornare nulla justo ut leo. Integer in lobortis ipsum, eget pharetra velit. Praesent aliquet placerat mattis.".to_string(),
-                timestamp: Local::now(),
-                role: ChatRole::App,
-            },
-                           ChatMessage {
-                               content: "asdlkansdkjabndjkasLorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vitae orci sed dui luctus cursus ac non odio. Etiam id faucibus lectus, sit amet tincidunt ipsum. Nunc malesuada bibendum felis id rutrum. Maecenas magna nulla, scelerisque ac augue id, fermentum interdum diam. Fusce nec laoreet lectus. Etiam id hendrerit nisi. Quisque scelerisque dui eu dictum lobortis. Fusce turpis metus, pulvinar ut justo pellentesque, faucibus convallis nulla. Fusce non porta ipsum.".to_string(),
-                               timestamp: Local::now(),
-                               role: ChatRole::User,
-                           }],
+            messages: MessagesStorage::default(),
             message_list_state: MessageListState::new(debug_logger.clone()),
             input_state: TextInputState {
                 prefix: String::from(" > | "),
@@ -78,10 +65,11 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                 autocomplete_state: AutocompleteState::new(),
             },
             debug_logger,
+            ollama: Ollama::default(),
         }
     }
 
-    fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+    async fn run(mut self, mut terminal: DefaultTerminal) -> Result<(), AnyError> {
         loop {
             match &self.window_state {
                 WindowState::Default => {
@@ -111,10 +99,10 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                         _ => {}
                     },
                     InputMode::Editing if key.kind == KeyEventKind::Press => {
-                        let action = TextInput::handle_key_event(key, &mut self.input_state);
+                        let action = TextInputWidget::handle_key_event(key, &mut self.input_state);
                         match action {
                             InputAction::Submit(content) => {
-                                self.on_submit(content);
+                                self.on_submit(content).await?;
                             }
                             InputAction::ExitEditingMode => {
                                 self.message_list_state.input_mode = InputMode::Normal;
@@ -152,7 +140,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         // creating blocks from layout
         let [messages_area, input_area, help_area] = vertical.areas(wrapper_area);
 
-        let input_label = InputLabel::new(&self.message_list_state.input_mode);
+        let input_label = InputLabelWidget::new(&self.message_list_state.input_mode);
         frame.render_stateful_widget(input_label, help_area, &mut self.input_state);
 
         match self.message_list_state.input_mode {
@@ -170,37 +158,45 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
             )),
         }
 
-        let message_list_widget = MessageList::new(&self.messages);
+        let message_list_widget = MessageListWidget::new(&self.messages.entries);
         frame.render_stateful_widget(
             message_list_widget,
             messages_area,
             &mut self.message_list_state,
         );
 
-        let input_widget = TextInput::new(&self.message_list_state.input_mode);
+        let input_widget = TextInputWidget::new(&self.message_list_state.input_mode);
         frame.render_stateful_widget(input_widget, input_area, &mut self.input_state);
 
         if USE_DEBUG {
-            let debug_block = DebugBlock::new(DebugLogger::get_messages(&self.debug_logger));
+            let debug_block = DebugBlockWidget::new(DebugLogger::get_messages(&self.debug_logger));
             frame.render_widget(debug_block, debug_area);
         }
     }
 
-    fn on_submit(&mut self, data: SubmitData) {
+    async fn on_submit(&mut self, data: SubmitData) -> Result<(), AnyError> {
         match data {
             SubmitData::Text(content) => {
                 if !content.trim().is_empty() {
-                    self.messages.push(ChatMessage {
-                        content,
-                        timestamp: Local::now(),
-                        role: ChatRole::User,
-                    });
+                    self.messages.append_message(ChatRole::User, content);
                 }
+                Ok(())
             }
             SubmitData::Command(command) => match command {
-                Command::ListModels(_) => {}
+                Command::ListModels(_) => match self.ollama.list_local_models().await {
+                    Ok(models) => {
+                        let list: Vec<String> = models.iter().map(|m| format!("> {};", m.name.clone())).collect();
+                        let msg = format!("Available models:\n\n{}", list.join("\n"));
+                        self.messages.append_message(ChatRole::App, msg);
+                        Ok(())
+                    }
+                    Err(err) => {
+                        self.messages.append_message(ChatRole::App, format!("{:?}", err));
+                        Ok(())},
+                },
                 Command::CreateAssistant(cmd) => {
                     self.window_state = CommandFlow(Command::CreateAssistant(cmd));
+                    Ok(())
                 }
             },
         }

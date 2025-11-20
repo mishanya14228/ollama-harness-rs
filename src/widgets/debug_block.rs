@@ -5,17 +5,17 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use textwrap::{Options, wrap};
 
 
-pub struct DebugBlock {
+pub struct DebugBlockWidget {
     debug_messages: Vec<String>,
 }
 
-impl DebugBlock {
+impl DebugBlockWidget {
     pub fn new(debug_messages: Vec<String>) -> Self {
         Self { debug_messages }
     }
 }
 
-impl Widget for DebugBlock {
+impl Widget for DebugBlockWidget {
     fn render(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,

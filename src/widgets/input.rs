@@ -12,13 +12,13 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
-pub struct TextInput<'a> {
+pub struct TextInputWidget<'a> {
     pub input_mode: &'a InputMode,
 }
 
-impl<'a> TextInput<'a> {
-    pub fn new(input_mode: &'a InputMode) -> TextInput<'a> {
-        TextInput { input_mode }
+impl<'a> TextInputWidget<'a> {
+    pub fn new(input_mode: &'a InputMode) -> TextInputWidget<'a> {
+        TextInputWidget { input_mode }
     }
 
     pub fn handle_key_event(key_event: KeyEvent, state: &mut TextInputState) -> InputAction {
@@ -26,23 +26,23 @@ impl<'a> TextInput<'a> {
 
         match key_event.code {
             KeyCode::Enter => {
-                TextInput::reset_cursor(state);
+                TextInputWidget::reset_cursor(state);
                 let action = InputAction::Submit(state.extract_submit_data());
                 state.input.clear();
                 return action;
             }
             KeyCode::Char(to_insert) => {
-                TextInput::enter_char(state, to_insert);
+                TextInputWidget::enter_char(state, to_insert);
                 state.autocomplete_state.current_index = 0;
             }
             KeyCode::Backspace => {
-                TextInput::delete_char(state, key_event.modifiers);
+                TextInputWidget::delete_char(state, key_event.modifiers);
             }
             KeyCode::Left => {
-                TextInput::move_cursor_left(state);
+                TextInputWidget::move_cursor_left(state);
             }
             KeyCode::Right => {
-                TextInput::move_cursor_right(state);
+                TextInputWidget::move_cursor_right(state);
             }
             KeyCode::Esc => {
                 input_action = InputAction::ExitEditingMode;
@@ -50,29 +50,29 @@ impl<'a> TextInput<'a> {
             KeyCode::Down => state.autocomplete_state.increment_current_index(),
             KeyCode::Up => state.autocomplete_state.decrement_current_index(),
             KeyCode::Tab => {
-                TextInput::autocomplete(state);
+                TextInputWidget::autocomplete(state);
             }
             _ => {}
         }
-        TextInput::detect_token(state);
+        TextInputWidget::detect_token(state);
 
         input_action
     }
 
     fn move_cursor_left(state: &mut TextInputState) {
         let cursor_moved_left = state.character_index.saturating_sub(1);
-        state.character_index = TextInput::clamp_cursor(state, cursor_moved_left);
+        state.character_index = TextInputWidget::clamp_cursor(state, cursor_moved_left);
     }
 
     fn move_cursor_right(state: &mut TextInputState) {
         let cursor_moved_right = state.character_index.saturating_add(1);
-        state.character_index = TextInput::clamp_cursor(state, cursor_moved_right);
+        state.character_index = TextInputWidget::clamp_cursor(state, cursor_moved_right);
     }
 
     fn enter_char(state: &mut TextInputState, new_char: char) {
-        let index = TextInput::byte_index(state);
+        let index = TextInputWidget::byte_index(state);
         state.input.insert(index, new_char);
-        TextInput::move_cursor_right(state);
+        TextInputWidget::move_cursor_right(state);
     }
 
     fn autocomplete(state: &mut TextInputState) {
@@ -95,7 +95,7 @@ impl<'a> TextInput<'a> {
             .clone()
             .chain(after_char_to_delete)
             .collect();
-        TextInput::move_cursor_left(state);
+        TextInputWidget::move_cursor_left(state);
 
         state
             .input
@@ -146,7 +146,7 @@ impl<'a> TextInput<'a> {
             // Put all characters together except the selected one.
             // By leaving the selected one out, it is forgotten and therefore deleted.
             state.input = before_char_to_delete.chain(after_char_to_delete).collect();
-            TextInput::move_cursor_left(state);
+            TextInputWidget::move_cursor_left(state);
         }
     }
 
@@ -206,7 +206,7 @@ impl<'a> TextInput<'a> {
     }
 }
 
-impl<'a> StatefulWidget for TextInput<'a> {
+impl<'a> StatefulWidget for TextInputWidget<'a> {
     type State = TextInputState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {

@@ -1,5 +1,6 @@
-use std::sync::{Arc, Mutex};
 use crate::InputMode;
+use crate::shared::constants::USE_DEBUG;
+use crate::shared::debug_logger::DebugLogger;
 use chrono::{DateTime, Local};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -7,9 +8,8 @@ use ratatui::prelude::{StatefulWidget, Widget};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
+use std::sync::{Arc, Mutex};
 use textwrap;
-use crate::shared::constants::USE_DEBUG;
-use crate::shared::debug_logger::DebugLogger;
 
 pub enum ChatRole {
     User,
@@ -28,7 +28,7 @@ pub struct MessageListState {
     pub text_height: usize,
     pub input_mode: InputMode,
     #[allow(dead_code)]
-    pub debug_logger: Arc<Mutex<DebugLogger>>
+    pub debug_logger: Arc<Mutex<DebugLogger>>,
 }
 
 impl MessageListState {
@@ -38,7 +38,7 @@ impl MessageListState {
             container_height: 0,
             text_height: 0,
             input_mode: InputMode::Normal,
-            debug_logger
+            debug_logger,
         }
     }
 
@@ -62,17 +62,17 @@ impl MessageListState {
     }
 }
 
-pub struct MessageList<'a> {
+pub struct MessageListWidget<'a> {
     messages: &'a Vec<ChatMessage>,
 }
 
-impl<'a> MessageList<'a> {
-    pub fn new(messages: &'a Vec<ChatMessage>) -> MessageList<'a> {
-        MessageList { messages }
+impl<'a> MessageListWidget<'a> {
+    pub fn new(messages: &'a Vec<ChatMessage>) -> MessageListWidget<'a> {
+        MessageListWidget { messages }
     }
 }
 
-impl<'a> StatefulWidget for MessageList<'a> {
+impl<'a> StatefulWidget for MessageListWidget<'a> {
     type State = MessageListState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
