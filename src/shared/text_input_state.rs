@@ -1,4 +1,4 @@
-use crate::shared::autocomplete_state::AutocompleteState;
+use crate::shared::autocomplete_state::{AutocompleteState, ReferenceType};
 use crate::shared::chat_action::SubmitData;
 use crate::shared::command::COMMANDS;
 use crate::shared::debug_logger::DebugLogger;
@@ -18,6 +18,7 @@ pub struct TextInputState {
     pub prefix: String,
     pub autocomplete_state: AutocompleteState,
     pub debug_logger: Arc<Mutex<DebugLogger>>,
+    pub override_autocomplete_type: Option<ReferenceType>,
 }
 
 impl TextInputState {
@@ -29,7 +30,14 @@ impl TextInputState {
             character_index: 0,
             debug_logger: debug_logger.clone(),
             autocomplete_state: AutocompleteState::new(),
+            override_autocomplete_type: None,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.input.clear();
+        self.character_index = 0;
+        self.input_mode = InputMode::Normal;
     }
 }
 

@@ -1,5 +1,6 @@
 pub mod message_list;
 pub mod input;
+pub mod select;
 pub mod input_label;
 pub mod debug_block;
 pub mod generic_journey;

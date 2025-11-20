@@ -44,6 +44,8 @@ struct App {
     input_state: TextInputState,
     debug_logger: Arc<Mutex<DebugLogger>>,
     ollama: Ollama,
+    assistant_journey_state: Option<CreateAssistantJourneyState>,
+    models: Vec<String>,
 }
 
 impl App {
@@ -56,10 +58,16 @@ impl App {
             input_state: TextInputState::new(&debug_logger),
             debug_logger,
             ollama: Ollama::default(),
+            assistant_journey_state: None,
+            models: vec![],
         }
     }
 
     async fn run(mut self, mut terminal: DefaultTerminal) -> Result<(), AnyError> {
+        if let Ok(models) = self.ollama.list_local_models().await {
+            self.models = models.iter().map(|m| m.name.clone()).collect();
+        }
+
         loop {
             let state = self.window_state.clone();
             match state {
@@ -72,40 +80,47 @@ impl App {
             }
 
             if let Event::Key(key) = event::read()? {
-                match self.input_state.input_mode {
-                    InputMode::Normal => match key.code {
-                        KeyCode::Char('e') => {
-                            self.input_state.input_mode = InputMode::Editing;
-                        }
-                        KeyCode::Char('q') => match self.window_state {
-                            WindowState::Default => {
+                match self.window_state {
+                    WindowState::Default => match self.input_state.input_mode {
+                        InputMode::Normal => match key.code {
+                            KeyCode::Char('e') => {
+                                self.input_state.input_mode = InputMode::Editing;
+                            }
+                            KeyCode::Char('q') => {
                                 return Ok(());
                             }
-                            CommandFlow(_) => {
-                                self.window_state = WindowState::Default;
+                            KeyCode::Up => {
+                                self.message_list_state.scroll_up();
                             }
+                            KeyCode::Down => {
+                                self.message_list_state.scroll_down();
+                            }
+                            _ => {}
                         },
-                        KeyCode::Up => {
-                            self.message_list_state.scroll_up();
+                        InputMode::Editing if key.kind == KeyEventKind::Press => {
+                            let action =
+                                TextInputWidget::handle_key_event(key, &mut self.input_state);
+                            match action {
+                                InputAction::Submit(content) => {
+                                    self.on_submit(content).await?;
+                                }
+                                InputAction::ExitEditingMode => {
+                                    self.input_state.input_mode = InputMode::Normal;
+                                }
+                                InputAction::None => {}
+                            }
                         }
-                        KeyCode::Down => {
-                            self.message_list_state.scroll_down();
-                        }
-                        _ => {}
+                        InputMode::Editing => {}
                     },
-                    InputMode::Editing if key.kind == KeyEventKind::Press => {
-                        let action = TextInputWidget::handle_key_event(key, &mut self.input_state);
-                        match action {
-                            InputAction::Submit(content) => {
-                                self.on_submit(content).await?;
-                            }
-                            InputAction::ExitEditingMode => {
-                                self.input_state.input_mode = InputMode::Normal;
-                            }
-                            InputAction::None => {}
+                    CommandFlow(_) => {
+                        if key.code == KeyCode::Esc {
+                             self.window_state = WindowState::Default;
+                             self.assistant_journey_state = None;
+                        } else if let Some(mut state) = self.assistant_journey_state.clone() {
+                            let _ = CreateAssistantJourneyWidget::handle_key_event(key, &mut state);
+                            self.assistant_journey_state = Some(state);
                         }
                     }
-                    InputMode::Editing => {}
                 }
             }
         }
@@ -165,7 +180,7 @@ impl App {
             &mut compiled_message_list_state,
         );
 
-        let input_widget = TextInputWidget::new();
+        let input_widget = TextInputWidget::new(true);
         frame.render_stateful_widget(input_widget, input_area, &mut self.input_state);
 
         if USE_DEBUG {
@@ -178,8 +193,11 @@ impl App {
         match cmd {
             Command::CreateAssistant(_) => {
                 let widget = CreateAssistantJourneyWidget {};
-                let mut state = CreateAssistantJourneyState::new(self.input_state.clone());
+                let mut state = self.assistant_journey_state.clone().unwrap_or(
+                    CreateAssistantJourneyState::new(self.input_state.clone(), self.models.clone()),
+                );
                 frame.render_stateful_widget(widget, frame.area(), &mut state);
+                self.assistant_journey_state = Some(state);
             }
             _ => {}
         }

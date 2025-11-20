@@ -1,4 +1,5 @@
 use crate::services::file_explorer::FileExplorer;
+use crate::shared::autocomplete_state::ReferenceType;
 use crate::shared::command::COMMANDS;
 use crate::shared::debug_logger::DebugLogger;
 use crate::shared::text_input_state::TextInputState;
@@ -79,7 +80,9 @@ impl<'a> InputLabelWidget<'a> {
 
     fn set_filepath_autocomplete(&self, state: &mut TextInputState, token: String) {
         let mut path = token.clone();
-        path.remove(0);
+        if path.starts_with('@') {
+            path.remove(0);
+        }
         if let Some(stripped) = path.strip_prefix("~") {
             let home = env::var("HOME").unwrap();
             path = format!("{home}{stripped}");
@@ -153,8 +156,8 @@ impl<'a> StatefulWidget for InputLabelWidget<'a> {
             .reference_token
             .clone()
             .unwrap_or_else(|| String::from(""));
-        match token.chars().next() {
-            Some('/') => {
+        match state.autocomplete_state.reference_type {
+            ReferenceType::Command => {
                 if state.input.starts_with('/') {
                     self.set_commands_autocomplete(state, token);
                     self.render_autocomplete(state, area, buf);
@@ -162,7 +165,7 @@ impl<'a> StatefulWidget for InputLabelWidget<'a> {
                     self.render_default_text(area, buf);
                 }
             }
-            Some('@') => {
+            ReferenceType::Filepath => {
                 self.set_filepath_autocomplete(state, token);
                 self.render_autocomplete(state, area, buf);
             }

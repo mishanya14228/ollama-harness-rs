@@ -12,11 +12,13 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
-pub struct TextInputWidget;
+pub struct TextInputWidget {
+    use_block: bool,
+}
 
 impl TextInputWidget {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(use_block: bool) -> Self {
+        Self { use_block }
     }
 
     pub fn handle_key_event(key_event: KeyEvent, state: &mut TextInputState) -> InputAction {
@@ -183,7 +185,16 @@ impl TextInputWidget {
 
         let token = &state.input[start..end];
 
-        let ref_type = AutocompleteState::get_reference_type_from_token(token);
+        let ref_type = if let Some(override_type) = &state.override_autocomplete_type {
+            if !token.is_empty() {
+                override_type.clone()
+            } else {
+                ReferenceType::None
+            }
+        } else {
+            AutocompleteState::get_reference_type_from_token(token)
+        };
+
         match ref_type {
             ReferenceType::None => {
                 state
@@ -210,16 +221,18 @@ impl StatefulWidget for TextInputWidget {
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         // rendering input
         let input_text = format!("{}{}", state.prefix, state.input);
-        let input = Paragraph::new(input_text.as_str())
-            .style(match state.input_mode {
-                InputMode::Normal => Style::default(),
-                InputMode::Editing => Style::default().fg(Color::Yellow),
-            })
-            .block(
+        let mut input = Paragraph::new(input_text.as_str()).style(match state.input_mode {
+            InputMode::Normal => Style::default(),
+            InputMode::Editing => Style::default().fg(Color::Yellow),
+        });
+
+        if self.use_block {
+            input = input.block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .title("Input"),
             );
+        }
         input.render(area, buf);
     }
 }

@@ -10,6 +10,7 @@ pub struct GenericJourneyWidget<W: StatefulWidget> {
     pub child: W,
 }
 
+#[derive(Clone)]
 pub struct GenericJourneyWidgetState<ChildState> {
     pub input_state: TextInputState,
     pub child_state: ChildState,
