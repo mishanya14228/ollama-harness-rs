@@ -1,7 +1,7 @@
+use crate::InputMode;
 use crate::shared::autocomplete_state::{AutocompleteState, ReferenceType};
 use crate::shared::chat_action::InputAction;
 use crate::shared::text_input_state::TextInputState;
-use crate::InputMode;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::{StatefulWidget, Widget};
@@ -12,13 +12,11 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
-pub struct TextInputWidget<'a> {
-    pub input_mode: &'a InputMode,
-}
+pub struct TextInputWidget;
 
-impl<'a> TextInputWidget<'a> {
-    pub fn new(input_mode: &'a InputMode) -> TextInputWidget<'a> {
-        TextInputWidget { input_mode }
+impl TextInputWidget {
+    pub fn new() -> Self {
+        Self {}
     }
 
     pub fn handle_key_event(key_event: KeyEvent, state: &mut TextInputState) -> InputAction {
@@ -206,14 +204,14 @@ impl<'a> TextInputWidget<'a> {
     }
 }
 
-impl<'a> StatefulWidget for TextInputWidget<'a> {
+impl StatefulWidget for TextInputWidget {
     type State = TextInputState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
         // rendering input
         let input_text = format!("{}{}", state.prefix, state.input);
         let input = Paragraph::new(input_text.as_str())
-            .style(match self.input_mode {
+            .style(match state.input_mode {
                 InputMode::Normal => Style::default(),
                 InputMode::Editing => Style::default().fg(Color::Yellow),
             })

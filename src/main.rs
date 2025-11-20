@@ -3,7 +3,6 @@ mod shared;
 mod widgets;
 
 use crate::shared::any_error::AnyError;
-use crate::shared::autocomplete_state::AutocompleteState;
 use crate::shared::chat_action::{InputAction, SubmitData};
 use crate::shared::command::Command;
 use crate::shared::constants::USE_DEBUG;
@@ -12,6 +11,9 @@ use crate::shared::messages_storage::MessagesStorage;
 use crate::shared::text_input_state::{InputMode, TextInputState};
 use crate::shared::window_state::WindowState;
 use crate::shared::window_state::WindowState::CommandFlow;
+use crate::widgets::create_assistant_journey::{
+    CreateAssistantJourneyState, CreateAssistantJourneyWidget,
+};
 use crate::widgets::debug_block::DebugBlockWidget;
 use crate::widgets::input::TextInputWidget;
 use crate::widgets::input_label::InputLabelWidget;
@@ -19,9 +21,9 @@ use crate::widgets::message_list::{ChatRole, MessageListState, MessageListWidget
 use color_eyre::Result;
 use ollama_rs::Ollama;
 use ratatui::{
-    DefaultTerminal, Frame,
-    crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Constraint, Layout, Position},
+    crossterm::event::{self, Event, KeyCode, KeyEventKind}, layout::{Constraint, Layout, Position},
+    DefaultTerminal,
+    Frame,
 };
 use std::sync::{Arc, Mutex};
 
@@ -59,13 +61,13 @@ impl App {
 
     async fn run(mut self, mut terminal: DefaultTerminal) -> Result<(), AnyError> {
         loop {
-            match &self.window_state {
+            let state = self.window_state.clone();
+            match state {
                 WindowState::Default => {
                     terminal.draw(|frame| self.draw_chat(frame))?;
                 }
                 CommandFlow(cmd) => {
-                    print!("{:?}", cmd);
-                    terminal.clear()?;
+                    terminal.draw(|frame| self.draw_command_journey(frame, cmd))?;
                 }
             }
 
@@ -75,9 +77,14 @@ impl App {
                         KeyCode::Char('e') => {
                             self.input_state.input_mode = InputMode::Editing;
                         }
-                        KeyCode::Char('q') => {
-                            return Ok(());
-                        }
+                        KeyCode::Char('q') => match self.window_state {
+                            WindowState::Default => {
+                                return Ok(());
+                            }
+                            CommandFlow(_) => {
+                                self.window_state = WindowState::Default;
+                            }
+                        },
                         KeyCode::Up => {
                             self.message_list_state.scroll_up();
                         }
@@ -158,12 +165,23 @@ impl App {
             &mut compiled_message_list_state,
         );
 
-        let input_widget = TextInputWidget::new(&input_mode);
+        let input_widget = TextInputWidget::new();
         frame.render_stateful_widget(input_widget, input_area, &mut self.input_state);
 
         if USE_DEBUG {
             let debug_block = DebugBlockWidget::new(DebugLogger::get_messages(&self.debug_logger));
             frame.render_widget(debug_block, debug_area);
+        }
+    }
+
+    fn draw_command_journey(&mut self, frame: &mut Frame, cmd: Command) {
+        match cmd {
+            Command::CreateAssistant(_) => {
+                let widget = CreateAssistantJourneyWidget {};
+                let mut state = CreateAssistantJourneyState::new(self.input_state.clone());
+                frame.render_stateful_widget(widget, frame.area(), &mut state);
+            }
+            _ => {}
         }
     }
 

@@ -10,6 +10,7 @@ pub enum InputMode {
     Editing,
 }
 
+#[derive(Clone)]
 pub struct TextInputState {
     pub input: String,
     pub input_mode: InputMode,

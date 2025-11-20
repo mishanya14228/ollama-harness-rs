@@ -2,3 +2,6 @@ pub mod message_list;
 pub mod input;
 pub mod input_label;
 pub mod debug_block;
+pub mod generic_journey;
+pub mod create_assistant_journey;
+pub mod create_assistant_form;

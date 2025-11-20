@@ -1,11 +1,11 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ReferenceType {
     Command,
     Filepath,
     None,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AutocompleteState {
     pub options: Vec<String>,
     pub current_index: usize,
