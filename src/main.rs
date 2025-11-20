@@ -6,6 +6,7 @@ use crate::shared::autocomplete_state::AutocompleteState;
 use crate::shared::constants::USE_DEBUG;
 use crate::shared::debug_logger::DebugLogger;
 use crate::shared::text_input_state::TextInputState;
+use crate::shared::window_state::WindowState;
 use crate::widgets::debug_block::DebugBlock;
 use crate::widgets::input::{InputAction, TextInput};
 use crate::widgets::input_label::InputLabel;
@@ -13,9 +14,9 @@ use crate::widgets::message_list::{ChatMessage, ChatRole, MessageList, MessageLi
 use chrono::Local;
 use color_eyre::Result;
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEventKind}, layout::{Constraint, Layout, Position},
-    DefaultTerminal,
-    Frame,
+    DefaultTerminal, Frame,
+    crossterm::event::{self, Event, KeyCode, KeyEventKind},
+    layout::{Constraint, Layout, Position},
 };
 use std::sync::{Arc, Mutex};
 
@@ -29,6 +30,7 @@ fn main() -> Result<()> {
 
 /// App holds the state of the application
 struct App {
+    window_state: WindowState,
     /// History of recorded messages
     messages: Vec<ChatMessage>,
     /// State for the message list widget
@@ -49,6 +51,7 @@ impl App {
     fn new() -> Self {
         let debug_logger = Arc::new(Mutex::new(DebugLogger::new()));
         Self {
+            window_state: WindowState::Default,
             messages: vec![ChatMessage {
                 content: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vitae orci sed dui luctus cursus ac non odio. Etiam id faucibus lectus, sit amet tincidunt ipsum. Nunc malesuada bibendum felis id rutrum. Maecenas magna nulla, scelerisque ac augue id, fermentum interdum diam. Fusce nec laoreet lectus. Etiam id hendrerit nisi. Quisque scelerisque dui eu dictum lobortis. Fusce turpis metus, pulvinar ut justo pellentesque, faucibus convallis nulla. Fusce non porta ipsum.
 

@@ -1,5 +1,6 @@
 use crate::InputMode;
 use crate::shared::autocomplete_state::{AutocompleteState, ReferenceType};
+use crate::shared::debug_logger::DebugLogger;
 use crate::shared::text_input_state::TextInputState;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};

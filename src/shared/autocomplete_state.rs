@@ -55,7 +55,10 @@ impl AutocompleteState {
 
     pub fn get_selected_option(&self) -> String {
         if let Some(option) = self.options.get(self.current_index) {
-            option.to_owned()
+            match self.reference_type {
+                ReferenceType::Command => option.split(" ").next().unwrap_or("").to_string(),
+                _ => option.to_owned(),
+            }
         } else {
             "".to_string()
         }

@@ -1,10 +1,13 @@
 use crate::InputMode;
 use crate::services::file_explorer::FileExplorer;
+use crate::shared::command::{COMMANDS, Command};
+use crate::shared::debug_logger::DebugLogger;
 use crate::shared::text_input_state::TextInputState;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::prelude::{Color, Line, Modifier, StatefulWidget, Style, Stylize, Text, Widget};
 use ratatui::widgets::Paragraph;
+use std::cmp::max;
 use std::env;
 
 pub struct InputLabel<'a> {
@@ -46,10 +49,30 @@ impl<'a> InputLabel<'a> {
         help_message.render(area, buf);
     }
 
-    fn render_commands(self, _state: &TextInputState, token: String, area: Rect, buf: &mut Buffer) {
-        let text = Text::from(Line::from(token));
-        let help_message = Paragraph::new(text);
-        help_message.render(area, buf);
+    fn set_commands_autocomplete(&self, state: &mut TextInputState, token: String) {
+        let mut path = token.clone();
+        DebugLogger::safe_log(&state.debug_logger, path.clone());
+        path.remove(0);
+        let max_name_length = COMMANDS
+            .iter()
+            .map(|cmd| cmd.metadata().name.len())
+            .max()
+            .unwrap_or(0);
+
+        let lines: Vec<String> = COMMANDS
+            .iter()
+            .filter(|entry| entry.metadata().name.starts_with(&path))
+            .map(|entry| {
+                let meta = entry.metadata();
+                format!(
+                    "{:<width$} - {}",
+                    meta.name,
+                    meta.description,
+                    width = max_name_length
+                )
+            })
+            .collect();
+        state.autocomplete_state.set_options(lines.clone());
     }
 
     fn set_filepath_autocomplete(&self, state: &mut TextInputState, token: String) {
@@ -68,28 +91,15 @@ impl<'a> InputLabel<'a> {
         state.autocomplete_state.set_options(lines.clone());
     }
 
-    fn render_file_path(self, state: &mut TextInputState, area: Rect, buf: &mut Buffer) {
-        let viewport_height = area.height.max(1) as usize;
-        let total_options = state.autocomplete_state.options.len();
+    fn render_autocomplete(self, state: &mut TextInputState, area: Rect, buf: &mut Buffer) {
+        let (total_options, start, end, current_index, options) =
+            InputLabel::prepare_autocomplete_options(state, area);
 
         if total_options == 0 {
             Paragraph::new("").render(area, buf);
             return;
         }
 
-        let mut current_index = state.autocomplete_state.current_index;
-        if current_index >= total_options {
-            current_index = total_options - 1;
-            state.autocomplete_state.set_current_index(current_index);
-        }
-
-        let max_start = total_options.saturating_sub(viewport_height);
-        let start = current_index
-            .saturating_sub(viewport_height.saturating_sub(1))
-            .min(max_start);
-        let end = (start + viewport_height).min(total_options);
-
-        let options = &state.autocomplete_state.options;
         let help_message = Paragraph::new(
             options[start..end]
                 .iter()
@@ -107,6 +117,30 @@ impl<'a> InputLabel<'a> {
         );
         help_message.render(area, buf);
     }
+
+    fn prepare_autocomplete_options(
+        state: &mut TextInputState,
+        area: Rect,
+    ) -> (usize, usize, usize, usize, Vec<String>) {
+        let viewport_height = area.height.max(1) as usize;
+        let total_options = state.autocomplete_state.options.len();
+
+        let mut current_index = state.autocomplete_state.current_index;
+        if current_index >= total_options {
+            current_index = total_options - 1;
+            state.autocomplete_state.set_current_index(current_index);
+        }
+
+        let max_start = total_options.saturating_sub(viewport_height);
+        let start = current_index
+            .saturating_sub(viewport_height.saturating_sub(1))
+            .min(max_start);
+        let end = (start + viewport_height).min(total_options);
+
+        let options = &state.autocomplete_state.options;
+
+        (total_options, start, end, current_index, options.clone())
+    }
 }
 
 impl<'a> StatefulWidget for InputLabel<'a> {
@@ -119,11 +153,16 @@ impl<'a> StatefulWidget for InputLabel<'a> {
             .unwrap_or_else(|| String::from(""));
         match token.chars().next() {
             Some('/') => {
-                self.render_commands(state, token, area, buf);
+                if state.input.starts_with('/') {
+                    self.set_commands_autocomplete(state, token);
+                    self.render_autocomplete(state, area, buf);
+                } else {
+                    self.render_default_text(area, buf);
+                }
             }
             Some('@') => {
                 self.set_filepath_autocomplete(state, token);
-                self.render_file_path(state, area, buf);
+                self.render_autocomplete(state, area, buf);
             }
             _ => {
                 self.render_default_text(area, buf);
