@@ -1,7 +1,7 @@
-use crate::InputMode;
 use crate::shared::autocomplete_state::{AutocompleteState, ReferenceType};
-use crate::shared::debug_logger::DebugLogger;
+use crate::shared::chat_action::InputAction;
 use crate::shared::text_input_state::TextInputState;
+use crate::InputMode;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::{StatefulWidget, Widget};
@@ -11,13 +11,6 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Paragraph},
 };
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum InputAction {
-    None,
-    Submit(String),
-    ExitEditingMode,
-}
 
 pub struct TextInput<'a> {
     pub input_mode: &'a InputMode,
@@ -33,10 +26,10 @@ impl<'a> TextInput<'a> {
 
         match key_event.code {
             KeyCode::Enter => {
-                let content = state.input.clone();
-                state.input.clear();
                 TextInput::reset_cursor(state);
-                return InputAction::Submit(content);
+                let action = InputAction::Submit(state.extract_submit_data());
+                state.input.clear();
+                return action;
             }
             KeyCode::Char(to_insert) => {
                 TextInput::enter_char(state, to_insert);

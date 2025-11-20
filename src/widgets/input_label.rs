@@ -1,13 +1,12 @@
-use crate::InputMode;
 use crate::services::file_explorer::FileExplorer;
-use crate::shared::command::{COMMANDS, Command};
+use crate::shared::command::COMMANDS;
 use crate::shared::debug_logger::DebugLogger;
 use crate::shared::text_input_state::TextInputState;
+use crate::InputMode;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::prelude::{Color, Line, Modifier, StatefulWidget, Style, Stylize, Text, Widget};
 use ratatui::widgets::Paragraph;
-use std::cmp::max;
 use std::env;
 
 pub struct InputLabel<'a> {
@@ -39,6 +38,9 @@ impl<'a> InputLabel<'a> {
                     " to stop editing, ".into(),
                     "Enter".bold(),
                     " to record the message".into(),
+                    " Use ".into(),
+                    "@ or /".bold(),
+                    " to reference files or use commands.".into(),
                 ],
                 Style::default(),
             ),

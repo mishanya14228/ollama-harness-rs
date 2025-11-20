@@ -3,12 +3,15 @@ mod shared;
 mod widgets;
 
 use crate::shared::autocomplete_state::AutocompleteState;
+use crate::shared::chat_action::{InputAction, SubmitData};
+use crate::shared::command::Command;
 use crate::shared::constants::USE_DEBUG;
 use crate::shared::debug_logger::DebugLogger;
 use crate::shared::text_input_state::TextInputState;
 use crate::shared::window_state::WindowState;
+use crate::shared::window_state::WindowState::CommandFlow;
 use crate::widgets::debug_block::DebugBlock;
-use crate::widgets::input::{InputAction, TextInput};
+use crate::widgets::input::TextInput;
 use crate::widgets::input_label::InputLabel;
 use crate::widgets::message_list::{ChatMessage, ChatRole, MessageList, MessageListState};
 use chrono::Local;
@@ -72,7 +75,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                 input: String::new(),
                 character_index: 0,
                 debug_logger: debug_logger.clone(),
-                autocomplete_state: AutocompleteState::new()
+                autocomplete_state: AutocompleteState::new(),
             },
             debug_logger,
         }
@@ -80,7 +83,15 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
 
     fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         loop {
-            terminal.draw(|frame| self.draw(frame))?;
+            match &self.window_state {
+                WindowState::Default => {
+                    terminal.draw(|frame| self.draw_chat(frame))?;
+                }
+                CommandFlow(cmd) => {
+                    print!("{:?}", cmd);
+                    terminal.clear()?;
+                }
+            }
 
             if let Event::Key(key) = event::read()? {
                 match self.message_list_state.input_mode {
@@ -103,13 +114,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
                         let action = TextInput::handle_key_event(key, &mut self.input_state);
                         match action {
                             InputAction::Submit(content) => {
-                                if !content.trim().is_empty() {
-                                    self.messages.push(ChatMessage {
-                                        content,
-                                        timestamp: Local::now(),
-                                        role: ChatRole::User,
-                                    });
-                                }
+                                self.on_submit(content);
                             }
                             InputAction::ExitEditingMode => {
                                 self.message_list_state.input_mode = InputMode::Normal;
@@ -123,7 +128,7 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         }
     }
 
-    fn draw(&mut self, frame: &mut Frame) {
+    fn draw_chat(&mut self, frame: &mut Frame) {
         let columns = if USE_DEBUG {
             [
                 Constraint::Max(0),
@@ -178,6 +183,26 @@ Praesent suscipit nulla eget est aliquet, vehicula rutrum nunc gravida. Etiam bi
         if USE_DEBUG {
             let debug_block = DebugBlock::new(DebugLogger::get_messages(&self.debug_logger));
             frame.render_widget(debug_block, debug_area);
+        }
+    }
+
+    fn on_submit(&mut self, data: SubmitData) {
+        match data {
+            SubmitData::Text(content) => {
+                if !content.trim().is_empty() {
+                    self.messages.push(ChatMessage {
+                        content,
+                        timestamp: Local::now(),
+                        role: ChatRole::User,
+                    });
+                }
+            }
+            SubmitData::Command(command) => match command {
+                Command::ListModels(_) => {}
+                Command::CreateAssistant(cmd) => {
+                    self.window_state = CommandFlow(Command::CreateAssistant(cmd));
+                }
+            },
         }
     }
 }

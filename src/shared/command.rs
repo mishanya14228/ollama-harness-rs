@@ -1,8 +1,10 @@
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct CommandMetadata {
     pub name: &'static str,
     pub description: &'static str,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Command {
     ListModels(CommandMetadata),
     CreateAssistant(CommandMetadata),
