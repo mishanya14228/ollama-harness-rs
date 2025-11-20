@@ -4,12 +4,32 @@ use crate::shared::command::COMMANDS;
 use crate::shared::debug_logger::DebugLogger;
 use std::sync::{Arc, Mutex};
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum InputMode {
+    Normal,
+    Editing,
+}
+
 pub struct TextInputState {
     pub input: String,
+    pub input_mode: InputMode,
     pub character_index: usize,
     pub prefix: String,
     pub autocomplete_state: AutocompleteState,
     pub debug_logger: Arc<Mutex<DebugLogger>>,
+}
+
+impl TextInputState {
+    pub fn new(debug_logger: &Arc<Mutex<DebugLogger>>) -> Self {
+        Self {
+            prefix: String::from(" > | "),
+            input: String::new(),
+            input_mode: InputMode::Normal,
+            character_index: 0,
+            debug_logger: debug_logger.clone(),
+            autocomplete_state: AutocompleteState::new(),
+        }
+    }
 }
 
 impl TextInputState {

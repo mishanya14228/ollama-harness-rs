@@ -26,7 +26,6 @@ pub struct MessageListState {
     pub scroll_offset: usize,
     pub container_height: usize,
     pub text_height: usize,
-    pub input_mode: InputMode,
     #[allow(dead_code)]
     pub debug_logger: Arc<Mutex<DebugLogger>>,
 }
@@ -37,7 +36,6 @@ impl MessageListState {
             scroll_offset: 0,
             container_height: 0,
             text_height: 0,
-            input_mode: InputMode::Normal,
             debug_logger,
         }
     }
@@ -73,9 +71,10 @@ impl<'a> MessageListWidget<'a> {
 }
 
 impl<'a> StatefulWidget for MessageListWidget<'a> {
-    type State = MessageListState;
+    type State = (&'a mut MessageListState, &'a mut InputMode);
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        let (list_state, input_mode) = state;
         let [message_container, debug_container] =
             Layout::vertical([Constraint::Min(0), Constraint::Max(3)]).areas(area);
 
@@ -146,8 +145,8 @@ impl<'a> StatefulWidget for MessageListWidget<'a> {
         }
 
         let text = Text::from(lines);
-        state.text_height = text.height();
-        state.container_height = chat_area.height as usize;
+        list_state.text_height = text.height();
+        list_state.container_height = chat_area.height as usize;
 
         if USE_DEBUG {
             let debug_container_block = Block::default().borders(Borders::ALL).title("Debug");
@@ -156,19 +155,19 @@ impl<'a> StatefulWidget for MessageListWidget<'a> {
 
             Paragraph::new(Text::from(Line::from(format!(
                 "flag: {:#?}; scroll offset: {:#?}; text height: {:#?}; chat height: {:#?}",
-                state.has_room_for_bottom_scroll(),
-                state.scroll_offset,
-                state.text_height,
-                state.container_height
+                list_state.has_room_for_bottom_scroll(),
+                list_state.scroll_offset,
+                list_state.text_height,
+                list_state.container_height
             ))))
             .render(debug_area, buf);
         }
 
-        if state.input_mode == InputMode::Editing && state.has_room_for_bottom_scroll() {
-            state.scroll_offset = state.text_height - state.container_height;
+        if input_mode.clone() == InputMode::Editing && list_state.has_room_for_bottom_scroll() {
+            list_state.scroll_offset = list_state.text_height - list_state.container_height;
         }
 
-        let paragraph = Paragraph::new(text).scroll((state.scroll_offset as u16, 0));
+        let paragraph = Paragraph::new(text).scroll((list_state.scroll_offset as u16, 0));
 
         paragraph.render(chat_area, buf);
     }
