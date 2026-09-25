@@ -190,16 +190,13 @@ impl App {
     }
 
     fn draw_command_journey(&mut self, frame: &mut Frame, cmd: Command) {
-        match cmd {
-            Command::CreateAssistant(_) => {
-                let widget = CreateAssistantJourneyWidget {};
-                let mut state = self.assistant_journey_state.clone().unwrap_or(
-                    CreateAssistantJourneyState::new(self.input_state.clone(), self.models.clone()),
-                );
-                frame.render_stateful_widget(widget, frame.area(), &mut state);
-                self.assistant_journey_state = Some(state);
-            }
-            _ => {}
+        if let Command::CreateAssistant(_) = cmd {
+            let widget = CreateAssistantJourneyWidget {};
+            let mut state = self.assistant_journey_state.clone().unwrap_or(
+                CreateAssistantJourneyState::new(self.input_state.clone(), self.models.clone()),
+            );
+            frame.render_stateful_widget(widget, frame.area(), &mut state);
+            self.assistant_journey_state = Some(state);
         }
     }
 

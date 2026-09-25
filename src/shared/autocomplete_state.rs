@@ -78,13 +78,13 @@ impl AutocompleteState {
         }
 
         if self.current_index < self.options.len().saturating_sub(1) {
-            self.current_index = self.current_index + 1;
+            self.current_index += 1;
         }
     }
 
     pub fn decrement_current_index(&mut self) {
         if self.current_index > 0 {
-            self.current_index = self.current_index - 1;
+            self.current_index -= 1;
         }
     }
 }

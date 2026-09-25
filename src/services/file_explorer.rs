@@ -31,23 +31,17 @@ impl FileExplorer {
         };
 
         let dir = fs::read_dir(root_dir_path);
-        match dir {
-            Ok(dir) => {
-                for entry in dir {
-                    let entry = entry.unwrap();
-                    match entry.file_type() {
-                        Ok(file_type) => {
-                            let mut path = entry.path().display().to_string();
-                            if file_type.is_dir() {
-                                path.push_str("/");
-                            }
-                            files.push(path);
-                        }
-                        Err(_) => {}
+        if let Ok(dir) = dir {
+            for entry in dir {
+                let entry = entry.unwrap();
+                if let Ok(file_type) = entry.file_type() {
+                    let mut path = entry.path().display().to_string();
+                    if file_type.is_dir() {
+                        path.push('/');
                     }
+                    files.push(path);
                 }
             }
-            Err(_) => {}
         }
         files
     }

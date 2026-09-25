@@ -71,8 +71,8 @@ impl CreateAssistantJourneyWidget {
                 _ => {
                     // Handle text input steps
                     let action = TextInputWidget::handle_key_event(key, &mut form_state.input_state);
-                    if let InputAction::Submit(SubmitData::Text(content)) = action {
-                        if !content.trim().is_empty() {
+                    if let InputAction::Submit(SubmitData::Text(content)) = action
+                        && !content.trim().is_empty() {
                             match form_state.step {
                                 CreateAssistantFormStep::Name => {
                                     form_state.name = content.clone();
@@ -97,7 +97,6 @@ impl CreateAssistantJourneyWidget {
                                 _ => {}
                             }
                         }
-                    }
                 }
             }
         }

@@ -76,7 +76,7 @@ impl TextInputWidget {
     }
 
     fn autocomplete(state: &mut TextInputState) {
-        let token_start_index = state.autocomplete_state.reference_token_index.clone();
+        let token_start_index = state.autocomplete_state.reference_token_index;
         let token_length = state
             .autocomplete_state
             .reference_token
