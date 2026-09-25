@@ -25,6 +25,7 @@ Type / to see available commands:
   /list-models       List all available models
   /create-assistant  Create a new assistant
   /select-assistant  Select an assistant to chat with
+  /remove-assistant  Remove one or more assistants
 
 Type @ to reference a file."
                     .to_string(),

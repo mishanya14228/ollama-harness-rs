@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AssistantConfig {
@@ -8,7 +9,14 @@ pub struct AssistantConfig {
     pub use_rag: bool,
 }
 
+#[derive(Clone)]
+pub struct StoredAssistant {
+    pub path: PathBuf,
+    pub config: AssistantConfig,
+}
+
 pub struct ActiveAssistant {
+    pub path: PathBuf,
     pub config: AssistantConfig,
     pub system_prompt: String,
 }

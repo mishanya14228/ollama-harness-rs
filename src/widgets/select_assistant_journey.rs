@@ -1,4 +1,4 @@
-use crate::shared::assistant_config::AssistantConfig;
+use crate::shared::assistant_config::StoredAssistant;
 use crate::shared::text_input_state::TextInputState;
 use crate::widgets::generic_journey::{
     GenericJourneyWidget, GenericJourneyWidgetState, JourneyOutcome,
@@ -12,21 +12,21 @@ use ratatui::prelude::StatefulWidget;
 #[derive(Clone)]
 pub struct SelectAssistantJourneyState {
     pub wrapper_state: GenericJourneyWidgetState<SelectState>,
-    pub configs: Vec<AssistantConfig>,
+    pub assistants: Vec<StoredAssistant>,
 }
 
 impl SelectAssistantJourneyState {
-    pub fn new(input_state: TextInputState, configs: Vec<AssistantConfig>) -> Self {
-        let items = configs
+    pub fn new(input_state: TextInputState, assistants: Vec<StoredAssistant>) -> Self {
+        let items = assistants
             .iter()
-            .map(|config| format!("{} ({})", config.name, config.model))
+            .map(|a| format!("{} ({})", a.config.name, a.config.model))
             .collect();
         Self {
             wrapper_state: GenericJourneyWidgetState {
                 input_state,
                 child_state: SelectState::new(items),
             },
-            configs,
+            assistants,
         }
     }
 }
@@ -34,7 +34,10 @@ impl SelectAssistantJourneyState {
 pub struct SelectAssistantJourneyWidget;
 
 impl SelectAssistantJourneyWidget {
-    pub fn handle_key_event(key: KeyEvent, state: &mut SelectAssistantJourneyState) -> JourneyOutcome {
+    pub fn handle_key_event(
+        key: KeyEvent,
+        state: &mut SelectAssistantJourneyState,
+    ) -> JourneyOutcome<StoredAssistant> {
         let select_state = &mut state.wrapper_state.child_state;
         match key.code {
             KeyCode::Up => select_state.previous(),
@@ -43,9 +46,9 @@ impl SelectAssistantJourneyWidget {
                 let selected = select_state
                     .list_state
                     .selected()
-                    .and_then(|i| state.configs.get(i));
-                if let Some(config) = selected {
-                    return JourneyOutcome::Completed(config.clone());
+                    .and_then(|i| state.assistants.get(i));
+                if let Some(assistant) = selected {
+                    return JourneyOutcome::Completed(assistant.clone());
                 }
             }
             _ => {}

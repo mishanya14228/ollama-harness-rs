@@ -1,9 +1,9 @@
 use crate::shared::any_error::AnyError;
-use crate::shared::assistant_config::AssistantConfig;
+use crate::shared::assistant_config::{AssistantConfig, StoredAssistant};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::io::ErrorKind;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const CONFIGS_DIR: &str = "harness_configs";
 
@@ -27,14 +27,14 @@ pub fn save(config: &AssistantConfig) -> Result<PathBuf, AnyError> {
     Ok(path)
 }
 
-pub fn load_all() -> Result<(Vec<AssistantConfig>, Vec<String>), AnyError> {
+pub fn load_all() -> Result<(Vec<StoredAssistant>, Vec<String>), AnyError> {
     let dir = match fs::read_dir(CONFIGS_DIR) {
         Ok(dir) => dir,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok((vec![], vec![])),
         Err(err) => return Err(err.into()),
     };
 
-    let mut configs = vec![];
+    let mut assistants = vec![];
     let mut errors = vec![];
     for entry in dir {
         let path = entry?.path();
@@ -45,13 +45,18 @@ pub fn load_all() -> Result<(Vec<AssistantConfig>, Vec<String>), AnyError> {
             .map_err(AnyError::from)
             .and_then(|yaml| serde_norway::from_str::<AssistantConfig>(&yaml).map_err(AnyError::from));
         match parsed {
-            Ok(config) => configs.push(config),
+            Ok(config) => assistants.push(StoredAssistant { path, config }),
             Err(err) => errors.push(format!("{}: {err}", path.display())),
         }
     }
-    configs.sort_by(|a, b| a.name.cmp(&b.name));
+    assistants.sort_by(|a, b| a.config.name.cmp(&b.config.name));
 
-    Ok((configs, errors))
+    Ok((assistants, errors))
+}
+
+pub fn remove(path: &Path) -> Result<(), AnyError> {
+    fs::remove_file(path)?;
+    Ok(())
 }
 
 pub fn load_system_prompt(config: &AssistantConfig) -> Result<String, AnyError> {

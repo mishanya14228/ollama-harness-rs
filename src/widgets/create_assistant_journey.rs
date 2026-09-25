@@ -51,7 +51,7 @@ impl CreateAssistantJourneyWidget {
     pub fn handle_key_event(
         key: KeyEvent,
         state: &mut CreateAssistantJourneyState,
-    ) -> Result<JourneyOutcome> {
+    ) -> Result<JourneyOutcome<AssistantConfig>> {
         let mut outcome = JourneyOutcome::Continue;
         {
             let form_state = &mut state.wrapper_state.child_state;

@@ -12,11 +12,14 @@ use crate::shared::text_input_state::{InputMode, TextInputState};
 use crate::shared::window_state::WindowState;
 use crate::shared::window_state::WindowState::CommandFlow;
 use crate::services::{assistant_configs, chat};
-use crate::shared::assistant_config::ActiveAssistant;
+use crate::shared::assistant_config::{ActiveAssistant, StoredAssistant};
 use crate::widgets::create_assistant_journey::{
     CreateAssistantJourneyState, CreateAssistantJourneyWidget,
 };
 use crate::widgets::generic_journey::JourneyOutcome;
+use crate::widgets::remove_assistant_journey::{
+    RemoveAssistantJourneyState, RemoveAssistantJourneyWidget,
+};
 use crate::widgets::select_assistant_journey::{
     SelectAssistantJourneyState, SelectAssistantJourneyWidget,
 };
@@ -54,6 +57,7 @@ struct App {
     ollama: Ollama,
     assistant_journey_state: Option<CreateAssistantJourneyState>,
     select_assistant_state: Option<SelectAssistantJourneyState>,
+    remove_assistant_state: Option<RemoveAssistantJourneyState>,
     active_assistant: Option<ActiveAssistant>,
     pending_reply: bool,
     models: Vec<String>,
@@ -71,6 +75,7 @@ impl App {
             ollama: Ollama::default(),
             assistant_journey_state: None,
             select_assistant_state: None,
+            remove_assistant_state: None,
             active_assistant: None,
             pending_reply: false,
             models: vec![],
@@ -214,6 +219,11 @@ impl App {
                     frame.render_stateful_widget(SelectAssistantJourneyWidget, frame.area(), state);
                 }
             }
+            Command::RemoveAssistant(_) => {
+                if let Some(state) = self.remove_assistant_state.as_mut() {
+                    frame.render_stateful_widget(RemoveAssistantJourneyWidget, frame.area(), state);
+                }
+            }
             Command::ListModels(_) => {}
         }
     }
@@ -251,7 +261,7 @@ impl App {
                 let Some(state) = self.select_assistant_state.as_mut() else {
                     return;
                 };
-                if let JourneyOutcome::Completed(config) =
+                if let JourneyOutcome::Completed(StoredAssistant { path, config }) =
                     SelectAssistantJourneyWidget::handle_key_event(key, state)
                 {
                     match assistant_configs::load_system_prompt(&config) {
@@ -263,6 +273,7 @@ impl App {
                                 format!("Active assistant: {} ({})", config.name, config.model),
                             );
                             self.active_assistant = Some(ActiveAssistant {
+                                path,
                                 config,
                                 system_prompt,
                             });
@@ -275,7 +286,61 @@ impl App {
                     self.close_command_flow();
                 }
             }
+            Command::RemoveAssistant(_) => {
+                let Some(state) = self.remove_assistant_state.as_mut() else {
+                    return;
+                };
+                if let JourneyOutcome::Completed(assistants) =
+                    RemoveAssistantJourneyWidget::handle_key_event(key, state)
+                {
+                    for assistant in assistants {
+                        self.remove_assistant(assistant);
+                    }
+                    self.close_command_flow();
+                }
+            }
             Command::ListModels(_) => {}
+        }
+    }
+
+    fn remove_assistant(&mut self, assistant: StoredAssistant) {
+        let name = &assistant.config.name;
+        let msg = match assistant_configs::remove(&assistant.path) {
+            Ok(()) => {
+                let was_active = self
+                    .active_assistant
+                    .as_ref()
+                    .is_some_and(|active| active.path == assistant.path);
+                if was_active {
+                    self.active_assistant = None;
+                }
+                format!("Assistant \"{name}\" removed ({})", assistant.path.display())
+            }
+            Err(err) => format!("Failed to remove assistant \"{name}\": {err}"),
+        };
+        self.messages.append_message(ChatRole::App, msg);
+    }
+
+    fn load_assistants_for_picker(&mut self) -> Vec<StoredAssistant> {
+        match assistant_configs::load_all() {
+            Ok((assistants, errors)) => {
+                for error in errors {
+                    self.messages
+                        .append_message(ChatRole::App, format!("Skipped broken config {error}"));
+                }
+                if assistants.is_empty() {
+                    self.messages.append_message(
+                        ChatRole::App,
+                        "No assistants found. Create one with /create-assistant".to_string(),
+                    );
+                }
+                assistants
+            }
+            Err(err) => {
+                self.messages
+                    .append_message(ChatRole::App, format!("Failed to load assistants: {err}"));
+                vec![]
+            }
         }
     }
 
@@ -299,6 +364,7 @@ impl App {
         self.window_state = WindowState::Default;
         self.assistant_journey_state = None;
         self.select_assistant_state = None;
+        self.remove_assistant_state = None;
     }
 
     async fn on_submit(&mut self, data: SubmitData) -> Result<(), AnyError> {
@@ -342,32 +408,24 @@ impl App {
                     Ok(())
                 }
                 Command::SelectAssistant(cmd) => {
-                    match assistant_configs::load_all() {
-                        Ok((configs, errors)) => {
-                            for error in errors {
-                                self.messages.append_message(
-                                    ChatRole::App,
-                                    format!("Skipped broken config {error}"),
-                                );
-                            }
-                            if configs.is_empty() {
-                                self.messages.append_message(
-                                    ChatRole::App,
-                                    "No assistants found. Create one with /create-assistant"
-                                        .to_string(),
-                                );
-                            } else {
-                                self.select_assistant_state = Some(SelectAssistantJourneyState::new(
-                                    self.input_state.clone(),
-                                    configs,
-                                ));
-                                self.window_state = CommandFlow(Command::SelectAssistant(cmd));
-                            }
-                        }
-                        Err(err) => self.messages.append_message(
-                            ChatRole::App,
-                            format!("Failed to load assistants: {err}"),
-                        ),
+                    let assistants = self.load_assistants_for_picker();
+                    if !assistants.is_empty() {
+                        self.select_assistant_state = Some(SelectAssistantJourneyState::new(
+                            self.input_state.clone(),
+                            assistants,
+                        ));
+                        self.window_state = CommandFlow(Command::SelectAssistant(cmd));
+                    }
+                    Ok(())
+                }
+                Command::RemoveAssistant(cmd) => {
+                    let assistants = self.load_assistants_for_picker();
+                    if !assistants.is_empty() {
+                        self.remove_assistant_state = Some(RemoveAssistantJourneyState::new(
+                            self.input_state.clone(),
+                            assistants,
+                        ));
+                        self.window_state = CommandFlow(Command::RemoveAssistant(cmd));
                     }
                     Ok(())
                 }

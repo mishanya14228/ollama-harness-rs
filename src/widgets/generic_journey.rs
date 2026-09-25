@@ -1,4 +1,3 @@
-use crate::shared::assistant_config::AssistantConfig;
 use crate::shared::text_input_state::TextInputState;
 use crate::widgets::input_label::InputLabelWidget;
 use ratatui::buffer::Buffer;
@@ -6,9 +5,9 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::prelude::{StatefulWidget, Widget};
 use ratatui::widgets::{Block, Borders};
 
-pub enum JourneyOutcome {
+pub enum JourneyOutcome<T> {
     Continue,
-    Completed(AssistantConfig),
+    Completed(T),
 }
 
 pub struct GenericJourneyWidget<W: StatefulWidget> {
