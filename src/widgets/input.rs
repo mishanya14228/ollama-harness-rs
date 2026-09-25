@@ -7,7 +7,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::prelude::{StatefulWidget, Widget};
 use ratatui::widgets::BorderType;
 use ratatui::{
-    layout::Rect,
+    layout::{Constraint, Layout, Position, Rect},
     style::{Color, Style},
     widgets::{Block, Paragraph},
 };
@@ -35,6 +35,35 @@ impl TextInputWidget {
     pub fn title(mut self, title: String) -> Self {
         self.title = title;
         self
+    }
+
+    pub fn cursor_position(&self, area: Rect, state: &TextInputState) -> Position {
+        let (_, text_area) = self.areas(area, state);
+        let scroll = TextInputWidget::scroll_offset(text_area, state);
+        Position::new(
+            text_area.x + (state.character_index - scroll) as u16,
+            text_area.y,
+        )
+    }
+
+    fn areas(&self, area: Rect, state: &TextInputState) -> (Rect, Rect) {
+        let inner = if self.use_block {
+            Block::bordered().inner(area)
+        } else {
+            area
+        };
+        let prefix_width = state.prefix.chars().count() as u16;
+        let [prefix_area, text_area] =
+            Layout::horizontal([Constraint::Length(prefix_width), Constraint::Fill(1)])
+                .areas(inner);
+        (prefix_area, text_area)
+    }
+
+    fn scroll_offset(text_area: Rect, state: &TextInputState) -> usize {
+        let visible_width = text_area.width as usize;
+        state
+            .character_index
+            .saturating_sub(visible_width.saturating_sub(1))
     }
 
     pub fn handle_key_event(key_event: KeyEvent, state: &mut TextInputState) -> InputAction {
@@ -235,22 +264,29 @@ impl StatefulWidget for TextInputWidget {
     type State = TextInputState;
 
     fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
-        // rendering input
-        let input_text = format!("{}{}", state.prefix, state.input);
-        let mut input = Paragraph::new(input_text.as_str()).style(match state.input_mode {
+        let style = match state.input_mode {
             InputMode::Normal => Style::default(),
             InputMode::Editing => Style::default().fg(Color::Yellow),
-        });
+        };
+        let (prefix_area, text_area) = self.areas(area, state);
+        let scroll = TextInputWidget::scroll_offset(text_area, state);
 
         if self.use_block {
             let mut block = Block::bordered()
                 .border_type(BorderType::Rounded)
-                .title(self.title);
+                .title(self.title.clone());
             if let Some(color) = self.border_color {
                 block = block.border_style(Style::default().fg(color));
             }
-            input = input.block(block);
+            block.render(area, buf);
         }
-        input.render(area, buf);
+
+        Paragraph::new(state.prefix.as_str())
+            .style(style)
+            .render(prefix_area, buf);
+        Paragraph::new(state.input.as_str())
+            .style(style)
+            .scroll((0, scroll as u16))
+            .render(text_area, buf);
     }
 }

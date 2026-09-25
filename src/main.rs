@@ -27,7 +27,7 @@ use crate::widgets::message_list::{ChatRole, MessageListState, MessageListWidget
 use color_eyre::Result;
 use ollama_rs::Ollama;
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind}, layout::{Constraint, Layout, Position}, style::Color,
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind}, layout::{Constraint, Layout}, style::Color,
     DefaultTerminal,
     Frame,
 };
@@ -166,19 +166,18 @@ impl App {
         let input_label = InputLabelWidget::new(&input_mode);
         frame.render_stateful_widget(input_label, help_area, &mut self.input_state);
 
-        match self.input_state.input_mode {
-            InputMode::Normal => {}
-            #[allow(clippy::cast_possible_truncation)]
-            InputMode::Editing => frame.set_cursor_position(Position::new(
-                // Draw the cursor at the current position in the input field.
-                // This position is can be controlled via the left and right arrow key
-                self.input_state.prefix.len() as u16
-                    + input_area.x
-                    + self.input_state.character_index as u16
-                    + 1,
-                // Move one line down, from the border to the input line
-                input_area.y + 1,
-            )),
+        let input_widget = match &self.active_assistant {
+            Some(assistant) => TextInputWidget::new(true)
+                .border_color(Color::Green)
+                .title(format!(
+                    "Input · {} ({})",
+                    assistant.config.name, assistant.config.model
+                )),
+            None => TextInputWidget::new(true),
+        };
+
+        if self.input_state.input_mode == InputMode::Editing {
+            frame.set_cursor_position(input_widget.cursor_position(input_area, &self.input_state));
         }
 
         let message_list_widget = MessageListWidget::new(&self.messages.entries);
@@ -192,15 +191,6 @@ impl App {
             &mut compiled_message_list_state,
         );
 
-        let input_widget = match &self.active_assistant {
-            Some(assistant) => TextInputWidget::new(true)
-                .border_color(Color::Green)
-                .title(format!(
-                    "Input · {} ({})",
-                    assistant.config.name, assistant.config.model
-                )),
-            None => TextInputWidget::new(true),
-        };
         frame.render_stateful_widget(input_widget, input_area, &mut self.input_state);
 
         if USE_DEBUG {

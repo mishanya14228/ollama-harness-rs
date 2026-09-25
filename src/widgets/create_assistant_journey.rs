@@ -134,5 +134,9 @@ impl StatefulWidget for CreateAssistantJourneyWidget {
             title: "Create Assistant Journey".to_owned(),
         };
         widget.render(area, buf, &mut state.wrapper_state);
+        // autocomplete options are filled in while rendering the wrapper's input label,
+        // key handling reads them from the child's input state
+        state.wrapper_state.child_state.input_state.autocomplete_state =
+            state.wrapper_state.input_state.autocomplete_state.clone();
     }
 }
