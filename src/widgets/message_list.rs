@@ -13,6 +13,7 @@ use textwrap;
 
 pub enum ChatRole {
     User,
+    Assistant,
     App,
 }
 
@@ -110,6 +111,7 @@ impl<'a> StatefulWidget for MessageListWidget<'a> {
 
             let style = match message.role {
                 ChatRole::User => Style::default().fg(Color::Cyan),
+                ChatRole::Assistant => Style::default().fg(Color::Green),
                 ChatRole::App => Style::default().fg(Color::Gray),
             };
 
@@ -123,7 +125,7 @@ impl<'a> StatefulWidget for MessageListWidget<'a> {
 
             // --- Add padding for alignment ---
             match message.role {
-                ChatRole::App => {
+                ChatRole::App | ChatRole::Assistant => {
                     // Left-aligned, no padding needed
                     for line_content in bubble_lines_content {
                         lines.push(Line::from(line_content).style(style));

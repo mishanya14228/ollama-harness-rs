@@ -11,9 +11,14 @@ use crate::shared::messages_storage::MessagesStorage;
 use crate::shared::text_input_state::{InputMode, TextInputState};
 use crate::shared::window_state::WindowState;
 use crate::shared::window_state::WindowState::CommandFlow;
-use crate::services::assistant_config_writer;
+use crate::services::{assistant_configs, chat};
+use crate::shared::assistant_config::ActiveAssistant;
 use crate::widgets::create_assistant_journey::{
-    CreateAssistantJourneyState, CreateAssistantJourneyWidget, JourneyOutcome,
+    CreateAssistantJourneyState, CreateAssistantJourneyWidget,
+};
+use crate::widgets::generic_journey::JourneyOutcome;
+use crate::widgets::select_assistant_journey::{
+    SelectAssistantJourneyState, SelectAssistantJourneyWidget,
 };
 use crate::widgets::debug_block::DebugBlockWidget;
 use crate::widgets::input::TextInputWidget;
@@ -22,7 +27,7 @@ use crate::widgets::message_list::{ChatRole, MessageListState, MessageListWidget
 use color_eyre::Result;
 use ollama_rs::Ollama;
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEventKind}, layout::{Constraint, Layout, Position},
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind}, layout::{Constraint, Layout, Position}, style::Color,
     DefaultTerminal,
     Frame,
 };
@@ -37,6 +42,8 @@ async fn main() -> Result<(), AnyError> {
     app_result
 }
 
+const THINKING_PLACEHOLDER: &str = "Thinking…";
+
 /// App holds the state of the application
 struct App {
     window_state: WindowState,
@@ -46,6 +53,9 @@ struct App {
     debug_logger: Arc<Mutex<DebugLogger>>,
     ollama: Ollama,
     assistant_journey_state: Option<CreateAssistantJourneyState>,
+    select_assistant_state: Option<SelectAssistantJourneyState>,
+    active_assistant: Option<ActiveAssistant>,
+    pending_reply: bool,
     models: Vec<String>,
 }
 
@@ -60,6 +70,9 @@ impl App {
             debug_logger,
             ollama: Ollama::default(),
             assistant_journey_state: None,
+            select_assistant_state: None,
+            active_assistant: None,
+            pending_reply: false,
             models: vec![],
         }
     }
@@ -78,6 +91,12 @@ impl App {
                 CommandFlow(cmd) => {
                     terminal.draw(|frame| self.draw_command_journey(frame, cmd))?;
                 }
+            }
+
+            if self.pending_reply {
+                self.pending_reply = false;
+                self.fetch_reply().await;
+                continue;
             }
 
             if let Event::Key(key) = event::read()? {
@@ -113,29 +132,7 @@ impl App {
                         }
                         InputMode::Editing => {}
                     },
-                    CommandFlow(_) => {
-                        if key.code == KeyCode::Esc {
-                             self.window_state = WindowState::Default;
-                             self.assistant_journey_state = None;
-                        } else if let Some(mut state) = self.assistant_journey_state.clone() {
-                            let outcome =
-                                CreateAssistantJourneyWidget::handle_key_event(key, &mut state);
-                            self.assistant_journey_state = Some(state);
-                            if let Ok(JourneyOutcome::Completed(config)) = outcome {
-                                let msg = match assistant_config_writer::save(&config) {
-                                    Ok(path) => format!(
-                                        "Assistant \"{}\" saved to {}",
-                                        config.name,
-                                        path.display()
-                                    ),
-                                    Err(err) => format!("Failed to save assistant: {err}"),
-                                };
-                                self.messages.append_message(ChatRole::App, msg);
-                                self.window_state = WindowState::Default;
-                                self.assistant_journey_state = None;
-                            }
-                        }
-                    }
+                    CommandFlow(_) => self.handle_command_flow_key(key),
                 }
             }
         }
@@ -195,7 +192,15 @@ impl App {
             &mut compiled_message_list_state,
         );
 
-        let input_widget = TextInputWidget::new(true);
+        let input_widget = match &self.active_assistant {
+            Some(assistant) => TextInputWidget::new(true)
+                .border_color(Color::Green)
+                .title(format!(
+                    "Input · {} ({})",
+                    assistant.config.name, assistant.config.model
+                )),
+            None => TextInputWidget::new(true),
+        };
         frame.render_stateful_widget(input_widget, input_area, &mut self.input_state);
 
         if USE_DEBUG {
@@ -205,21 +210,123 @@ impl App {
     }
 
     fn draw_command_journey(&mut self, frame: &mut Frame, cmd: Command) {
-        if let Command::CreateAssistant(_) = cmd {
-            let widget = CreateAssistantJourneyWidget {};
-            let mut state = self.assistant_journey_state.clone().unwrap_or(
-                CreateAssistantJourneyState::new(self.input_state.clone(), self.models.clone()),
-            );
-            frame.render_stateful_widget(widget, frame.area(), &mut state);
-            self.assistant_journey_state = Some(state);
+        match cmd {
+            Command::CreateAssistant(_) => {
+                let widget = CreateAssistantJourneyWidget {};
+                let mut state = self.assistant_journey_state.clone().unwrap_or(
+                    CreateAssistantJourneyState::new(self.input_state.clone(), self.models.clone()),
+                );
+                frame.render_stateful_widget(widget, frame.area(), &mut state);
+                self.assistant_journey_state = Some(state);
+            }
+            Command::SelectAssistant(_) => {
+                if let Some(state) = self.select_assistant_state.as_mut() {
+                    frame.render_stateful_widget(SelectAssistantJourneyWidget, frame.area(), state);
+                }
+            }
+            Command::ListModels(_) => {}
         }
+    }
+
+    fn handle_command_flow_key(&mut self, key: KeyEvent) {
+        if key.code == KeyCode::Esc {
+            self.close_command_flow();
+            return;
+        }
+
+        let CommandFlow(cmd) = self.window_state.clone() else {
+            return;
+        };
+        match cmd {
+            Command::CreateAssistant(_) => {
+                let Some(state) = self.assistant_journey_state.as_mut() else {
+                    return;
+                };
+                if let Ok(JourneyOutcome::Completed(config)) =
+                    CreateAssistantJourneyWidget::handle_key_event(key, state)
+                {
+                    let msg = match assistant_configs::save(&config) {
+                        Ok(path) => format!(
+                            "Assistant \"{}\" saved to {}",
+                            config.name,
+                            path.display()
+                        ),
+                        Err(err) => format!("Failed to save assistant: {err}"),
+                    };
+                    self.messages.append_message(ChatRole::App, msg);
+                    self.close_command_flow();
+                }
+            }
+            Command::SelectAssistant(_) => {
+                let Some(state) = self.select_assistant_state.as_mut() else {
+                    return;
+                };
+                if let JourneyOutcome::Completed(config) =
+                    SelectAssistantJourneyWidget::handle_key_event(key, state)
+                {
+                    match assistant_configs::load_system_prompt(&config) {
+                        Ok(system_prompt) => {
+                            self.messages.entries.clear();
+                            self.message_list_state.scroll_offset = 0;
+                            self.messages.append_message(
+                                ChatRole::App,
+                                format!("Active assistant: {} ({})", config.name, config.model),
+                            );
+                            self.active_assistant = Some(ActiveAssistant {
+                                config,
+                                system_prompt,
+                            });
+                        }
+                        Err(err) => self.messages.append_message(
+                            ChatRole::App,
+                            format!("Can't use assistant \"{}\", failed to read system prompt {err}", config.name),
+                        ),
+                    }
+                    self.close_command_flow();
+                }
+            }
+            Command::ListModels(_) => {}
+        }
+    }
+
+    async fn fetch_reply(&mut self) {
+        let Some(assistant) = &self.active_assistant else {
+            return;
+        };
+        let result = chat::send(&self.ollama, assistant, &self.messages.entries).await;
+
+        // replace the "Thinking…" bubble with the reply
+        self.messages.entries.pop();
+        match result {
+            Ok(reply) => self.messages.append_message(ChatRole::Assistant, reply),
+            Err(err) => self
+                .messages
+                .append_message(ChatRole::App, format!("Error: {err}")),
+        }
+    }
+
+    fn close_command_flow(&mut self) {
+        self.window_state = WindowState::Default;
+        self.assistant_journey_state = None;
+        self.select_assistant_state = None;
     }
 
     async fn on_submit(&mut self, data: SubmitData) -> Result<(), AnyError> {
         match data {
             SubmitData::Text(content) => {
-                if !content.trim().is_empty() {
-                    self.messages.append_message(ChatRole::User, content);
+                if content.trim().is_empty() {
+                    return Ok(());
+                }
+                self.messages.append_message(ChatRole::User, content);
+                if self.active_assistant.is_some() {
+                    self.messages
+                        .append_message(ChatRole::App, THINKING_PLACEHOLDER.to_string());
+                    self.pending_reply = true;
+                } else {
+                    self.messages.append_message(
+                        ChatRole::App,
+                        "Select an assistant with /select-assistant to chat.".to_string(),
+                    );
                 }
                 Ok(())
             }
@@ -242,6 +349,36 @@ impl App {
                 },
                 Command::CreateAssistant(cmd) => {
                     self.window_state = CommandFlow(Command::CreateAssistant(cmd));
+                    Ok(())
+                }
+                Command::SelectAssistant(cmd) => {
+                    match assistant_configs::load_all() {
+                        Ok((configs, errors)) => {
+                            for error in errors {
+                                self.messages.append_message(
+                                    ChatRole::App,
+                                    format!("Skipped broken config {error}"),
+                                );
+                            }
+                            if configs.is_empty() {
+                                self.messages.append_message(
+                                    ChatRole::App,
+                                    "No assistants found. Create one with /create-assistant"
+                                        .to_string(),
+                                );
+                            } else {
+                                self.select_assistant_state = Some(SelectAssistantJourneyState::new(
+                                    self.input_state.clone(),
+                                    configs,
+                                ));
+                                self.window_state = CommandFlow(Command::SelectAssistant(cmd));
+                            }
+                        }
+                        Err(err) => self.messages.append_message(
+                            ChatRole::App,
+                            format!("Failed to load assistants: {err}"),
+                        ),
+                    }
                     Ok(())
                 }
             },

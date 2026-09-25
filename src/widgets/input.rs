@@ -14,11 +14,27 @@ use ratatui::{
 
 pub struct TextInputWidget {
     use_block: bool,
+    border_color: Option<Color>,
+    title: String,
 }
 
 impl TextInputWidget {
     pub fn new(use_block: bool) -> Self {
-        Self { use_block }
+        Self {
+            use_block,
+            border_color: None,
+            title: "Input".to_string(),
+        }
+    }
+
+    pub fn border_color(mut self, color: Color) -> Self {
+        self.border_color = Some(color);
+        self
+    }
+
+    pub fn title(mut self, title: String) -> Self {
+        self.title = title;
+        self
     }
 
     pub fn handle_key_event(key_event: KeyEvent, state: &mut TextInputState) -> InputAction {
@@ -227,11 +243,13 @@ impl StatefulWidget for TextInputWidget {
         });
 
         if self.use_block {
-            input = input.block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .title("Input"),
-            );
+            let mut block = Block::bordered()
+                .border_type(BorderType::Rounded)
+                .title(self.title);
+            if let Some(color) = self.border_color {
+                block = block.border_style(Style::default().fg(color));
+            }
+            input = input.block(block);
         }
         input.render(area, buf);
     }

@@ -6,3 +6,4 @@ pub mod debug_block;
 pub mod generic_journey;
 pub mod create_assistant_journey;
 pub mod create_assistant_form;
+pub mod select_assistant_journey;

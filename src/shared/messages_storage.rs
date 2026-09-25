@@ -24,6 +24,7 @@ impl Default for MessagesStorage {
 Type / to see available commands:
   /list-models       List all available models
   /create-assistant  Create a new assistant
+  /select-assistant  Select an assistant to chat with
 
 Type @ to reference a file."
                     .to_string(),

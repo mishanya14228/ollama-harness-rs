@@ -4,7 +4,9 @@ use crate::shared::text_input_state::{InputMode, TextInputState};
 use crate::widgets::create_assistant_form::{
     CreateAssistantFormStep, CreateAssistantFormWidget, CreateAssistantFormWidgetState,
 };
-use crate::widgets::generic_journey::{GenericJourneyWidget, GenericJourneyWidgetState};
+use crate::widgets::generic_journey::{
+    GenericJourneyWidget, GenericJourneyWidgetState, JourneyOutcome,
+};
 use crate::widgets::input::TextInputWidget;
 use crate::widgets::select::SelectState;
 use color_eyre::Result;
@@ -41,11 +43,6 @@ impl CreateAssistantJourneyState {
             },
         }
     }
-}
-
-pub enum JourneyOutcome {
-    Continue,
-    Completed(AssistantConfig),
 }
 
 pub struct CreateAssistantJourneyWidget;

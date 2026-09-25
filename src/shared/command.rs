@@ -8,6 +8,7 @@ pub struct CommandMetadata {
 pub enum Command {
     ListModels(CommandMetadata),
     CreateAssistant(CommandMetadata),
+    SelectAssistant(CommandMetadata),
 }
 
 impl Command {
@@ -15,6 +16,7 @@ impl Command {
         match self {
             Command::ListModels(meta) => meta,
             Command::CreateAssistant(meta) => meta,
+            Command::SelectAssistant(meta) => meta,
         }
     }
 }
@@ -27,5 +29,9 @@ pub const COMMANDS: &[Command] = &[
     Command::CreateAssistant(CommandMetadata {
         name: "create-assistant",
         description: "Create a new assistant",
+    }),
+    Command::SelectAssistant(CommandMetadata {
+        name: "select-assistant",
+        description: "Select an assistant to chat with",
     }),
 ];
