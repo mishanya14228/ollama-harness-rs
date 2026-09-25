@@ -1,3 +1,4 @@
+use crate::shared::assistant_config::AssistantConfig;
 use crate::shared::chat_action::{InputAction, SubmitData};
 use crate::shared::text_input_state::{InputMode, TextInputState};
 use crate::widgets::create_assistant_form::{
@@ -30,21 +31,31 @@ impl CreateAssistantJourneyState {
                     model: String::new(),
                     system_prompt_path: String::new(),
                     use_rag: false,
-                    embedding_model: None,
-                    rag_files_path: None,
+                    // embedding_model: None,
+                    // rag_files_path: None,
                     input_state: input_state.clone(),
                     select_state: SelectState::new(models),
                     history: vec![],
+                    error: None,
                 },
             },
         }
     }
 }
 
+pub enum JourneyOutcome {
+    Continue,
+    Completed(AssistantConfig),
+}
+
 pub struct CreateAssistantJourneyWidget;
 
 impl CreateAssistantJourneyWidget {
-    pub fn handle_key_event(key: KeyEvent, state: &mut CreateAssistantJourneyState) -> Result<()> {
+    pub fn handle_key_event(
+        key: KeyEvent,
+        state: &mut CreateAssistantJourneyState,
+    ) -> Result<JourneyOutcome> {
+        let mut outcome = JourneyOutcome::Continue;
         {
             let form_state = &mut state.wrapper_state.child_state;
 
@@ -88,11 +99,23 @@ impl CreateAssistantJourneyWidget {
                                     form_state.input_state.override_autocomplete_type = None;
                                 }
                                 CreateAssistantFormStep::UseRag => {
-                                    // Stop here as requested
-                                    form_state.use_rag = content.to_lowercase() == "yes";
-                                    form_state.history.push(("Use RAG".to_string(), content));
-                                    // form_state.step = CreateAssistantFormStep::EmbeddingModel;
-                                    // form_state.input_state.reset();
+                                    let answer = content.trim().to_uppercase();
+                                    match answer.as_str() {
+                                        "Y" | "N" => {
+                                            form_state.error = None;
+                                            form_state.use_rag = answer == "Y";
+                                            form_state.history.push(("Use RAG".to_string(), answer));
+                                            outcome = JourneyOutcome::Completed(AssistantConfig {
+                                                name: form_state.name.clone(),
+                                                model: form_state.model.clone(),
+                                                system_prompt_path: form_state.system_prompt_path.clone(),
+                                                use_rag: form_state.use_rag,
+                                            });
+                                        }
+                                        _ => {
+                                            form_state.error = Some("Please answer Y or N".to_string());
+                                        }
+                                    }
                                 }
                                 _ => {}
                             }
@@ -101,7 +124,7 @@ impl CreateAssistantJourneyWidget {
             }
         }
         state.wrapper_state.input_state = state.wrapper_state.child_state.input_state.clone();
-        Ok(())
+        Ok(outcome)
     }
 }
 

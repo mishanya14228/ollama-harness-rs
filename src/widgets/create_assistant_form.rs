@@ -14,10 +14,10 @@ pub enum CreateAssistantFormStep {
     Model,
     SystemPromptPath,
     UseRag,
-    EmbeddingModel,
-    RagFilesPath,
-    Confirmation,
-    Completed,
+    // EmbeddingModel,
+    // RagFilesPath,
+    // Confirmation,
+    // Completed,
 }
 
 #[derive(Clone)]
@@ -27,12 +27,12 @@ pub struct CreateAssistantFormWidgetState {
     pub model: String,
     pub system_prompt_path: String,
     pub use_rag: bool,
-    pub embedding_model: Option<String>,
-    pub rag_files_path: Option<String>,
-
+    // pub embedding_model: Option<String>,
+    // pub rag_files_path: Option<String>,
     pub input_state: TextInputState,
     pub select_state: SelectState,
     pub history: Vec<(String, String)>, // (Label, Value)
+    pub error: Option<String>,
 }
 
 pub struct CreateAssistantFormWidget;
@@ -47,11 +47,16 @@ impl StatefulWidget for CreateAssistantFormWidget {
             _ => 3,
         };
 
-        let [history_area, current_step_area] = Layout::vertical([
+        let [history_area, current_step_area, error_area] = Layout::vertical([
             Constraint::Length(history_len),
             Constraint::Length(current_step_height),
+            Constraint::Length(1),
         ])
         .areas(area);
+
+        if let Some(error) = &state.error {
+            Paragraph::new(error.clone().red()).render(error_area, buf);
+        }
 
         // Render History
         for (i, (label, value)) in state.history.iter().enumerate() {
@@ -83,9 +88,9 @@ impl StatefulWidget for CreateAssistantFormWidget {
              CreateAssistantFormStep::UseRag => {
                  // For now, just reuse input for Yes/No or implement another select
                  // The user asked to work UNTIL "use rag" step, so we can stop here or implement basic input
-                 self.render_input_step("Enable RAG? (Yes/No): ", current_step_area, buf, &mut state.input_state);
+                 self.render_input_step("Enable RAG? (Y/N): ", current_step_area, buf, &mut state.input_state);
             }
-            _ => {}
+            // _ => {}
         }
     }
 }

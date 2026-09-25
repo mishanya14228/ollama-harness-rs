@@ -7,3 +7,4 @@ pub mod command;
 pub mod chat_action;
 pub mod any_error;
 pub mod messages_storage;
+pub mod assistant_config;

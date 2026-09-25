@@ -25,6 +25,7 @@ impl FileExplorer {
             normalized_path.clone()
         } else {
             match Path::new(&normalized_path).parent() {
+                Some(parent) if parent.as_os_str().is_empty() => ".".to_string(),
                 Some(parent) => parent.to_str().unwrap().to_string(),
                 None => "/".to_string(),
             }

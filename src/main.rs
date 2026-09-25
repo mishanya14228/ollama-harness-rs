@@ -11,8 +11,9 @@ use crate::shared::messages_storage::MessagesStorage;
 use crate::shared::text_input_state::{InputMode, TextInputState};
 use crate::shared::window_state::WindowState;
 use crate::shared::window_state::WindowState::CommandFlow;
+use crate::services::assistant_config_writer;
 use crate::widgets::create_assistant_journey::{
-    CreateAssistantJourneyState, CreateAssistantJourneyWidget,
+    CreateAssistantJourneyState, CreateAssistantJourneyWidget, JourneyOutcome,
 };
 use crate::widgets::debug_block::DebugBlockWidget;
 use crate::widgets::input::TextInputWidget;
@@ -117,8 +118,22 @@ impl App {
                              self.window_state = WindowState::Default;
                              self.assistant_journey_state = None;
                         } else if let Some(mut state) = self.assistant_journey_state.clone() {
-                            let _ = CreateAssistantJourneyWidget::handle_key_event(key, &mut state);
+                            let outcome =
+                                CreateAssistantJourneyWidget::handle_key_event(key, &mut state);
                             self.assistant_journey_state = Some(state);
+                            if let Ok(JourneyOutcome::Completed(config)) = outcome {
+                                let msg = match assistant_config_writer::save(&config) {
+                                    Ok(path) => format!(
+                                        "Assistant \"{}\" saved to {}",
+                                        config.name,
+                                        path.display()
+                                    ),
+                                    Err(err) => format!("Failed to save assistant: {err}"),
+                                };
+                                self.messages.append_message(ChatRole::App, msg);
+                                self.window_state = WindowState::Default;
+                                self.assistant_journey_state = None;
+                            }
                         }
                     }
                 }

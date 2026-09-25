@@ -97,13 +97,13 @@ impl<'a> InputLabelWidget<'a> {
     }
 
     fn render_autocomplete(self, state: &mut TextInputState, area: Rect, buf: &mut Buffer) {
-        let (total_options, start, end, current_index, options) =
-            InputLabelWidget::prepare_autocomplete_options(state, area);
-
-        if total_options == 0 {
+        if state.autocomplete_state.options.is_empty() {
             Paragraph::new("").render(area, buf);
             return;
         }
+
+        let (start, end, current_index, options) =
+            InputLabelWidget::prepare_autocomplete_options(state, area);
 
         let help_message = Paragraph::new(
             options[start..end]
@@ -126,7 +126,7 @@ impl<'a> InputLabelWidget<'a> {
     fn prepare_autocomplete_options(
         state: &mut TextInputState,
         area: Rect,
-    ) -> (usize, usize, usize, usize, Vec<String>) {
+    ) -> (usize, usize, usize, Vec<String>) {
         let viewport_height = area.height.max(1) as usize;
         let total_options = state.autocomplete_state.options.len();
 
@@ -144,7 +144,7 @@ impl<'a> InputLabelWidget<'a> {
 
         let options = &state.autocomplete_state.options;
 
-        (total_options, start, end, current_index, options.clone())
+        (start, end, current_index, options.clone())
     }
 }
 
