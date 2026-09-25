@@ -4,6 +4,11 @@ A terminal UI for chatting with local [Ollama](https://ollama.com) models, built
 
 I've built somewhat working harness for local ollama models using Ink and React, but it was painfully laggy, so I wanted to rebuild it via rust. So this repo is a rewrite of an earlier Ink/React version (see [`reference/create-assistant.tsx`](reference/create-assistant.tsx) for the reference implementation of the create-assistant flow). It's around 80% manual coding and 20% AI assisted, the purpose of the project is to get comfortable with rust. The project is unfinished because I discovered LMStudio and OpenCode :) This one was fun to build, I liked working on controls and command or file autocompletes. rust is fun!   
 
+## Demo
+
+https://github.com/user-attachments/assets/05ee614e-35e9-4f7d-b521-0bf09f9cf234
+
+
 ## Running
 
 Requires a running Ollama server on the default address (`http://localhost:11434`).
