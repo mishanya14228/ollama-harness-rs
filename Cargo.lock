@@ -957,7 +957,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ollama-cli-rs"
+name = "ollama-harness"
 version = "0.1.0"
 dependencies = [
  "chrono",
