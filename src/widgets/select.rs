@@ -19,6 +19,10 @@ impl SelectState {
     }
 
     pub fn next(&mut self) {
+        if self.items.is_empty() {
+            return;
+        }
+
         let i = match self.list_state.selected() {
             Some(i) => {
                 if i >= self.items.len() - 1 {
@@ -33,6 +37,10 @@ impl SelectState {
     }
 
     pub fn previous(&mut self) {
+        if self.items.is_empty() {
+            return;
+        }
+
         let i = match self.list_state.selected() {
             Some(i) => {
                 if i == 0 {
